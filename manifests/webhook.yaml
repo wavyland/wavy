@@ -1,0 +1,205 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wavy
+  labels:
+    app.kubernetes.io/name: wavy
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: wavy.squat.ai
+webhooks:
+- name: wavy.squat.ai
+  namespaceSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values: ["wavy"]
+  rules:
+  - apiGroups:   [""]
+    apiVersions: ["v1"]
+    operations:  ["CREATE"]
+    resources:   ["pods"]
+    scope:       Namespaced
+  clientConfig:
+    service:
+      namespace: wavy
+      name: wavy-webhook
+      path: /mutate
+  admissionReviewVersions: ["v1"]
+  sideEffects: None
+  timeoutSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wavy-webhook
+  namespace: wavy
+  labels:
+    app.kubernetes.io/name: wavy
+    app.kubernetes.io/component: webhook-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wavy
+      app.kubernetes.io/component: webhook-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wavy
+        app.kubernetes.io/component: webhook-server
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: webhook
+        image: ghcr.io/wavyland/wavy
+        args:
+        - webhook
+        - --certificate=/run/secrets/tls/tls.crt
+        - --key=/run/secrets/tls/tls.key
+        - --listen-metrics=:9090
+        - --listen=:8443
+        ports:
+        - containerPort: 8443
+          name: webhook
+        - containerPort: 9090
+          name: metrics
+        volumeMounts:
+        - name: tls
+          mountPath: /run/secrets/tls
+          readOnly: true
+      volumes:
+      - name: tls
+        secret:
+          secretName: wavy-webhook-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wavy-webhook
+  namespace: wavy
+  labels:
+    app.kubernetes.io/name: wavy
+    app.kubernetes.io/component: webhook-server
+spec:
+  selector:
+    app.kubernetes.io/name: wavy
+    app.kubernetes.io/component: webhook-server
+  ports:
+    - port: 443
+      targetPort: webhook
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: wavy-webhook
+  namespace: wavy
+  labels:
+    app.kubernetes.io/name: wavy
+    app.kubernetes.io/component: webhook-server
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: wavy-webhook
+  labels:
+    app.kubernetes.io/name: wavy
+    app.kubernetes.io/component: webhook-server
+rules:
+- apiGroups:
+  - admissionregistration.k8s.io
+  resources:
+  - mutatingwebhookconfigurations
+  resourceNames:
+  - wavy.squat.ai
+  verbs:
+  - get
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: wavy-webhook
+  labels:
+    app.kubernetes.io/name: wavy
+    app.kubernetes.io/component: webhook-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: wavy-webhook
+subjects:
+  - kind: ServiceAccount
+    namespace: wavy
+    name: wavy-webhook
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: wavy-webhook
+  namespace: wavy
+  labels:
+    app.kubernetes.io/name: wavy
+    app.kubernetes.io/component: webhook-server
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: wavy-webhook
+  namespace: wavy
+  labels:
+    app.kubernetes.io/name: wavy
+    app.kubernetes.io/component: webhook-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: wavy-webhook
+subjects:
+  - kind: ServiceAccount
+    namespace: wavy
+    name: wavy-webhook
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cert-gen
+  namespace: wavy
+  labels:
+    app.kubernetes.io/name: wavy
+    app.kubernetes.io/component: certificate-generator
+spec:
+  template:
+    spec:
+      serviceAccountName: wavy-webhook
+      initContainers:
+      - name: create
+        image: k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
+        args:
+        - create
+        - --namespace=wavy
+        - --secret-name=wavy-webhook-tls
+        - --host=wavy-webhook,wavy-webhook.wavy.svc
+        - --key-name=tls.key
+        - --cert-name=tls.crt
+      containers:
+      - name: patch
+        image: k8s.gcr.io/ingress-nginx/kube-webhook-certgen:v1.0
+        args:
+        - patch
+        - --webhook-name=wavy.squat.ai
+        - --secret-name=wavy-webhook-tls
+        - --namespace=wavy
+        - --patch-validating=false
+      restartPolicy: OnFailure
+  backoffLimit: 4
