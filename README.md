@@ -74,3 +74,24 @@ kubectl port-forward svc/inkscape http
 ```
 
 Now, Inkscape can be used pointing a browser to [http://localhost:8080](http://localhost:8080).
+
+## Annotations
+
+The following annotations can be added to any Kubernetes Pod to configure Wavy.
+
+|Name|type|examples|
+|----|----|-------|
+|[wavy.squat.ai/enable](#enable)|boolean|`"true"`|
+|[wavy.squat.ai/tls-secret](#tls-secret)|string|`app-tls`|
+
+### enable
+
+When annotated with `wavy.squat.ai/enable=true`, Pods are patched by Wavy so that the applications running in them can render their GUI and the GUI is exposed on a port named `wavy-http`.
+
+> **Note**: Kubernetes annotation values are required to be strings; this means the value of this annotation must be the YAML string literal `"true"` rather than the YAML boolean `true`.
+
+### tls-secret
+
+Workloads annotated with `wavy.squat.ai/tls-secret` will expose the HTTP service over TLS using the certificate and key contained in the referenced secret.
+The secret is expected to be a Kubernetes secret of type `kubernetes.io/tls` and must provide values for the `tls.crt` and `tls.key` keys.
+See the [Kubernetes documentation on secrets](https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets) for more information.

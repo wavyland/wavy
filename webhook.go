@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -48,10 +50,13 @@ const (
 	portNameVNC               = "wavy-vnc"
 	portNameHTTP              = "wavy-http"
 	volumeNameXDGRuntimeDir   = "wavy-xdg-runtime-dir"
-	pathXDGRuntimeDir         = "/var/lib/wavy"
+	volumeNameTLS             = "wavy-tls"
+	pathXDGRuntimeDir         = "/var/lib/wavy/xdg"
+	pathTLS                   = "/var/lib/wavy/tls"
 	defaultWaylandDisplay     = "wayland-1"
-	enableAnnotationKey       = "wavy.squat.ai/enable"
-	enableAnnotationValueTrue = "true"
+	annotationKeyEnable       = "wavy.squat.ai/enable"
+	annotationKeyTLSSecret    = "wavy.squat.ai/tls-secret"
+	annotationValueEnableTrue = "true"
 )
 
 var (
@@ -153,7 +158,10 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if requiresPatch(&pod.ObjectMeta) {
-		pod.Spec = *patchPodSpec(&pod.Spec)
+		o := patchOptions{
+			tlsSecret: pod.ObjectMeta.Annotations[annotationKeyTLSSecret],
+		}
+		pod.Spec = *patchPodSpec(&pod.Spec, &o)
 		newBytes, err := json.Marshal(pod)
 		if err != nil {
 			errorCounter.Inc()
@@ -204,10 +212,14 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func requiresPatch(meta *metav1.ObjectMeta) bool {
-	return meta.Annotations[enableAnnotationKey] == enableAnnotationValueTrue
+	return meta.Annotations[annotationKeyEnable] == annotationValueEnableTrue
 }
 
-func patchPodSpec(old *v1.PodSpec) *v1.PodSpec {
+type patchOptions struct {
+	tlsSecret string
+}
+
+func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 	ps := old.DeepCopy()
 	var hasNoVNC bool
 	var hasSway bool
@@ -239,17 +251,45 @@ func patchPodSpec(old *v1.PodSpec) *v1.PodSpec {
 	}
 
 	if !hasNoVNC {
+		args := []string{"--file-only"}
+		port := int32(8080)
+		var vs []v1.VolumeMount
+		if o.tlsSecret != "" {
+			port = 8443
+			args = append(args, []string{
+				"--ssl-only",
+				"--cert",
+				filepath.Join(pathTLS, "tls.crt"),
+				"--key",
+				filepath.Join(pathTLS, "tls.key"),
+			}...)
+			vs = append(vs, v1.VolumeMount{
+				Name:      volumeNameTLS,
+				MountPath: pathTLS,
+			})
+			ps.Volumes = append(ps.Volumes, v1.Volume{
+				Name: volumeNameTLS,
+				VolumeSource: v1.VolumeSource{
+					Secret: &v1.SecretVolumeSource{
+						SecretName: o.tlsSecret,
+					},
+				},
+			})
+		}
+
+		args = append(args, []string{strconv.Itoa(int(port)), "localhost:5900"}...)
 		ps.Containers = append(ps.Containers, v1.Container{
 			Name:  containerNameNoVNC,
 			Image: "ghcr.io/wavyland/novnc",
-			Args:  []string{"--file-only", "8080", "localhost:5900"},
+			Args:  args,
 			Ports: []v1.ContainerPort{
 				{
 					Name:          portNameHTTP,
-					ContainerPort: 8080,
+					ContainerPort: port,
 					Protocol:      v1.ProtocolTCP,
 				},
 			},
+			VolumeMounts: vs,
 		})
 
 	}
