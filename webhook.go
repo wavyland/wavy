@@ -39,19 +39,19 @@ import (
 )
 
 const (
-	containerNameNoVNC           = "wavy-novnc"
-	containerNameSway            = "wavy-sway"
-	containerNameWayVNC          = "wavy-wayvnc"
-	envNameXDGRuntimeDir         = "XDG_RUNTIME_DIR"
-	envNameWaylandDisplay        = "WAYLAND_DISPLAY"
-	envNameWLRBackends           = "WLR_BACKENDS"
-	portNameVNC                  = "wavy-vnc"
-	portNameHTTP                 = "wavy-http"
-	volumeNameXDGRuntimeDir      = "wavy-xdg-runtime-dir"
-	pathXDGRuntimeDir            = "/var/lib/wavy"
-	defaultWaylandDisplay        = "wayland-1"
-	injectAnnotationKey          = "wavy.squat.ai/inject"
-	injectAnnotationValueEnabled = "enabled"
+	containerNameNoVNC        = "wavy-novnc"
+	containerNameSway         = "wavy-sway"
+	containerNameWayVNC       = "wavy-wayvnc"
+	envNameXDGRuntimeDir      = "XDG_RUNTIME_DIR"
+	envNameWaylandDisplay     = "WAYLAND_DISPLAY"
+	envNameWLRBackends        = "WLR_BACKENDS"
+	portNameVNC               = "wavy-vnc"
+	portNameHTTP              = "wavy-http"
+	volumeNameXDGRuntimeDir   = "wavy-xdg-runtime-dir"
+	pathXDGRuntimeDir         = "/var/lib/wavy"
+	defaultWaylandDisplay     = "wayland-1"
+	enableAnnotationKey       = "wavy.squat.ai/enable"
+	enableAnnotationValueTrue = "true"
 )
 
 var (
@@ -152,7 +152,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if requiresInject(&pod.ObjectMeta) {
+	if requiresPatch(&pod.ObjectMeta) {
 		pod.Spec = *patchPodSpec(&pod.Spec)
 		newBytes, err := json.Marshal(pod)
 		if err != nil {
@@ -203,8 +203,8 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func requiresInject(meta *metav1.ObjectMeta) bool {
-	return meta.Annotations[injectAnnotationKey] == injectAnnotationValueEnabled
+func requiresPatch(meta *metav1.ObjectMeta) bool {
+	return meta.Annotations[enableAnnotationKey] == enableAnnotationValueTrue
 }
 
 func patchPodSpec(old *v1.PodSpec) *v1.PodSpec {
@@ -242,7 +242,7 @@ func patchPodSpec(old *v1.PodSpec) *v1.PodSpec {
 		ps.Containers = append(ps.Containers, v1.Container{
 			Name:  containerNameNoVNC,
 			Image: "ghcr.io/wavyland/novnc",
-			Args:  []string{"8080", "localhost:5900"},
+			Args:  []string{"--file-only", "8080", "localhost:5900"},
 			Ports: []v1.ContainerPort{
 				{
 					Name:          portNameHTTP,

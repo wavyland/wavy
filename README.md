@@ -9,9 +9,9 @@ Wavy is a toolset for running GUI applications on Kubernetes.
 
 ## Overview
 
-Wavy makes it possible to run containerized GUI applications, think Inkscape or Libreoffice, on Kubernetes and makes them accessible via the browser.
+Wavy makes it possible to run containerized GUI desktop applications &mdash; think Inkscape or Libreoffice &mdash; on Kubernetes and makes them accessible via the browser.
 This workflow allows users to run applications in the cloud and access them from any device without needing to install any software.
-Wavy works by patching Kubernetes Pods that are annotated with `wavy.squat.ai/inject=enabled` to include the necessary tools.
+Wavy works by patching Kubernetes Pods that are annotated with `wavy.squat.ai/enable=true` to include the necessary tools.
 
 ## Getting Started
 
@@ -21,7 +21,7 @@ To install Wavy, deploy the included Kubernetes admission webhook:
 kubectl apply -f https://raw.githubusercontent.com/wavyland/wavy/main/manifests/webhook.yaml
 ```
 
-Now, deploy an application that requires a GUI and ensure it is annotated with `wavy.squat.ai/inject=enabled`
+Now, deploy an application that renders a GUI and ensure it is annotated with `wavy.squat.ai/enable=true`
 For example, the following script could be used to deploy Inkscape:
 
 ```shell
@@ -30,7 +30,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   annotations:
-    wavy.squat.ai/inject: enabled
+    wavy.squat.ai/enable: "true"
   labels:
     app.kubernetes.io/name: inkscape
   name: inkscape
@@ -47,7 +47,7 @@ spec:
         command:
         - /bin/bash
         - -c
-        - ps -o command | grep ^inkscape | grep -v grep
+        - ps -o command | grep ^inkscape
       periodSeconds: 5
 ---
 apiVersion: v1
