@@ -41,22 +41,23 @@ import (
 )
 
 const (
-	containerNameNoVNC        = "wavy-novnc"
-	containerNameSway         = "wavy-sway"
-	containerNameWayVNC       = "wavy-wayvnc"
-	envNameXDGRuntimeDir      = "XDG_RUNTIME_DIR"
-	envNameWaylandDisplay     = "WAYLAND_DISPLAY"
-	envNameWLRBackends        = "WLR_BACKENDS"
-	portNameVNC               = "wavy-vnc"
-	portNameHTTP              = "wavy-http"
-	volumeNameXDGRuntimeDir   = "wavy-xdg-runtime-dir"
-	volumeNameTLS             = "wavy-tls"
-	pathXDGRuntimeDir         = "/var/lib/wavy/xdg"
-	pathTLS                   = "/var/lib/wavy/tls"
-	defaultWaylandDisplay     = "wayland-1"
-	annotationKeyEnable       = "wavy.squat.ai/enable"
-	annotationKeyTLSSecret    = "wavy.squat.ai/tls-secret"
-	annotationValueEnableTrue = "true"
+	containerNameNoVNC           = "wavy-novnc"
+	containerNameSway            = "wavy-sway"
+	containerNameWayVNC          = "wavy-wayvnc"
+	envNameXDGRuntimeDir         = "XDG_RUNTIME_DIR"
+	envNameWaylandDisplay        = "WAYLAND_DISPLAY"
+	envNameWLRBackends           = "WLR_BACKENDS"
+	portNameVNC                  = "wavy-vnc"
+	portNameHTTP                 = "wavy-http"
+	volumeNameXDGRuntimeDir      = "wavy-xdg-runtime-dir"
+	volumeNameTLS                = "wavy-tls"
+	pathXDGRuntimeDir            = "/var/lib/wavy/xdg"
+	pathTLS                      = "/var/lib/wavy/tls"
+	defaultWaylandDisplay        = "wayland-1"
+	annotationKeyEnable          = "wavy.squat.ai/enable"
+	annotationKeyTLSSecret       = "wavy.squat.ai/tls-secret"
+	annotationKeyBasicAuthSecret = "wavy.squat.ai/basic-auth-secret"
+	annotationValueEnableTrue    = "true"
 )
 
 var (
@@ -159,7 +160,8 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 
 	if requiresPatch(&pod.ObjectMeta) {
 		o := patchOptions{
-			tlsSecret: pod.ObjectMeta.Annotations[annotationKeyTLSSecret],
+			basicAuthSecret: pod.ObjectMeta.Annotations[annotationKeyBasicAuthSecret],
+			tlsSecret:       pod.ObjectMeta.Annotations[annotationKeyTLSSecret],
 		}
 		pod.Spec = *patchPodSpec(&pod.Spec, &o)
 		newBytes, err := json.Marshal(pod)
@@ -216,7 +218,8 @@ func requiresPatch(meta *metav1.ObjectMeta) bool {
 }
 
 type patchOptions struct {
-	tlsSecret string
+	basicAuthSecret string
+	tlsSecret       string
 }
 
 func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
@@ -256,13 +259,13 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 		var vs []v1.VolumeMount
 		if o.tlsSecret != "" {
 			port = 8443
-			args = append(args, []string{
+			args = append(args,
 				"--ssl-only",
 				"--cert",
 				filepath.Join(pathTLS, "tls.crt"),
 				"--key",
 				filepath.Join(pathTLS, "tls.key"),
-			}...)
+			)
 			vs = append(vs, v1.VolumeMount{
 				Name:      volumeNameTLS,
 				MountPath: pathTLS,
@@ -277,11 +280,48 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 			})
 		}
 
-		args = append(args, []string{strconv.Itoa(int(port)), "localhost:5900"}...)
+		var es []v1.EnvVar
+		if o.basicAuthSecret != "" {
+			args = append(args,
+				"--web-auth",
+				"--auth-plugin",
+				"BasicHTTPAuth",
+				"--auth-source",
+				"$(USERNAME):$(PASSWORD)",
+			)
+			es = append(es, []v1.EnvVar{
+				{
+					Name: "USERNAME",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: o.basicAuthSecret,
+							},
+							Key: "username",
+						},
+					},
+				},
+				{
+					Name: "PASSWORD",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: o.basicAuthSecret,
+							},
+							Key: "password",
+						},
+					},
+				},
+			}...,
+			)
+		}
+
+		args = append(args, strconv.Itoa(int(port)), "localhost:5900")
 		ps.Containers = append(ps.Containers, v1.Container{
 			Name:  containerNameNoVNC,
 			Image: "ghcr.io/wavyland/novnc",
 			Args:  args,
+			Env:   es,
 			Ports: []v1.ContainerPort{
 				{
 					Name:          portNameHTTP,
@@ -291,7 +331,6 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 			},
 			VolumeMounts: vs,
 		})
-
 	}
 
 	if !hasSway {

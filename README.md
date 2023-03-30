@@ -31,6 +31,7 @@ kind: Pod
 metadata:
   annotations:
     wavy.squat.ai/enable: "true"
+    wavy.squat.ai/basic-auth-secret: inkscape
   labels:
     app.kubernetes.io/name: inkscape
   name: inkscape
@@ -49,6 +50,17 @@ spec:
         - -c
         - ps -o command | grep ^inkscape
       periodSeconds: 5
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    app.kubernetes.io/name: inkscape
+  name: inkscape
+type: kubernetes.io/basic-auth
+stringData:
+  username: user
+  password: pass
 ---
 apiVersion: v1
 kind: Service
@@ -73,7 +85,7 @@ kubectl wait --for=condition=Ready pod/inkscape --timeout=-1s
 kubectl port-forward svc/inkscape http
 ```
 
-Now, Inkscape can be used pointing a browser to [http://localhost:8080](http://localhost:8080).
+Now, Inkscape can be used pointing a browser to [http://localhost:8080](http://localhost:8080) and logging in with the username `user` and the password `pass`.
 
 ## Annotations
 
@@ -82,6 +94,7 @@ The following annotations can be added to any Kubernetes Pod to configure Wavy.
 |Name|type|examples|
 |----|----|-------|
 |[wavy.squat.ai/enable](#enable)|boolean|`"true"`|
+|[wavy.squat.ai/basic-auth-secret](#basic-auth-secret)|string|`app-secret`|
 |[wavy.squat.ai/tls-secret](#tls-secret)|string|`app-tls`|
 
 ### enable
@@ -89,6 +102,13 @@ The following annotations can be added to any Kubernetes Pod to configure Wavy.
 When annotated with `wavy.squat.ai/enable=true`, Pods are patched by Wavy so that the applications running in them can render their GUI and the GUI is exposed on a port named `wavy-http`.
 
 > **Note**: Kubernetes annotation values are required to be strings; this means the value of this annotation must be the YAML string literal `"true"` rather than the YAML boolean `true`.
+
+### basic-auth-secret
+
+Access to an application can be guarded with basic authentication by annotating the workload with `wavy.squat.ai/basic-auth-secret`.
+When basic authentication is activated, access is only permitted with the username and password contained in the secret referenced in the annotation.
+The secret is expected to be a Kubernetes secret of type `kubernetes.io/basic-auth` and must provide values for the `username` and `password` keys.
+See the [Kubernetes documentation on secrets](https://kubernetes.io/docs/concepts/configuration/secret/#basic-authentication-secret) for more information.
 
 ### tls-secret
 
