@@ -60,7 +60,7 @@ spec:
   selector:
     app.kubernetes.io/name: inkscape
   ports:
-    - port: 6080
+    - port: 8080
       name: http
       targetPort: wavy-http
 EOF
@@ -73,4 +73,4 @@ kubectl wait --for=condition=Ready pod/inkscape --timeout=-1s
 kubectl port-forward svc/inkscape http
 ```
 
-Now, Inkscape can be used pointing a browser to [http://localhost:6080](http://localhost:6080).
+Now, Inkscape can be used pointing a browser to [http://localhost:8080](http://localhost:8080).

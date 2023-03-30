@@ -242,11 +242,11 @@ func patchPodSpec(old *v1.PodSpec) *v1.PodSpec {
 		ps.Containers = append(ps.Containers, v1.Container{
 			Name:  containerNameNoVNC,
 			Image: "ghcr.io/wavyland/novnc",
-			Args:  []string{"6080", "localhost:5900"},
+			Args:  []string{"8080", "localhost:5900"},
 			Ports: []v1.ContainerPort{
 				{
 					Name:          portNameHTTP,
-					ContainerPort: 6080,
+					ContainerPort: 8080,
 					Protocol:      v1.ProtocolTCP,
 				},
 			},
@@ -281,7 +281,7 @@ func patchPodSpec(old *v1.PodSpec) *v1.PodSpec {
 		ps.Containers = append(ps.Containers, v1.Container{
 			Name:  containerNameWayVNC,
 			Image: "ghcr.io/wavyland/wayvnc",
-			Args:  []string{"0.0.0.0", "5900"},
+			Args:  []string{"127.0.0.1", "5900"},
 			Env: []v1.EnvVar{
 				{
 					Name:  envNameXDGRuntimeDir,
@@ -290,13 +290,6 @@ func patchPodSpec(old *v1.PodSpec) *v1.PodSpec {
 				{
 					Name:  envNameWaylandDisplay,
 					Value: defaultWaylandDisplay,
-				},
-			},
-			Ports: []v1.ContainerPort{
-				{
-					Name:          portNameVNC,
-					ContainerPort: 5900,
-					Protocol:      v1.ProtocolTCP,
 				},
 			},
 			VolumeMounts: []v1.VolumeMount{
