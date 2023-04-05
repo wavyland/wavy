@@ -24,12 +24,12 @@ webhooks:
     scope:       Namespaced
   - apiGroups:   [apps]
     apiVersions: [v1]
-    operations:  [CREATE]
+    operations:  [CREATE, UPDATE]
     resources:   [daemonsets, deployments, replicasets, statefulsets]
     scope:       Namespaced
   - apiGroups:   [batch]
     apiVersions: [v1]
-    operations:  [CREATE]
+    operations:  [CREATE, UPDATE]
     resources:   [cronjobs, jobs]
     scope:       Namespaced
   clientConfig:

@@ -175,7 +175,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		op, err := jsonpatch.CreatePatch(admissionReview.Request.Object.Raw, newBytes)
+		ops, err := jsonpatch.CreatePatch(admissionReview.Request.Object.Raw, newBytes)
 		if err != nil {
 			errorCounter.Inc()
 			msg := fmt.Sprintf("could not create patch: %v:", err)
@@ -184,16 +184,15 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		patch, err := json.Marshal(op)
-		if err != nil {
-			errorCounter.Inc()
-			msg := fmt.Sprintf("could not marshal patch: %v:", err)
-			level.Error(logger).Log("err", msg)
-			http.Error(w, msg, http.StatusBadRequest)
-			return
-		}
-
-		if len(patch) != 0 {
+		if len(ops) != 0 {
+			patch, err := json.Marshal(ops)
+			if err != nil {
+				errorCounter.Inc()
+				msg := fmt.Sprintf("could not marshal patch: %v:", err)
+				level.Error(logger).Log("err", msg)
+				http.Error(w, msg, http.StatusBadRequest)
+				return
+			}
 			ptjp := admissionv1.PatchTypeJSONPatch
 			response.Response.Patch = patch
 			response.Response.PatchType = &ptjp
@@ -311,17 +310,36 @@ func getPodSpec(ar *admissionv1.AdmissionRequest) (*v1.PodSpec, *metav1.ObjectMe
 }
 
 func requiresPatch(meta *metav1.ObjectMeta) bool {
-	for _, or := range meta.OwnerReferences {
-		if or.APIVersion == "apps/v1" && or.Kind == "Deployment" && or.Controller != nil && *or.Controller {
-			return false
-		}
-	}
 	return meta.Annotations[annotationKeyEnable] == annotationValueEnableTrue
 }
 
 type patchOptions struct {
 	basicAuthSecret string
 	tlsSecret       string
+}
+
+func sliceHasElementWithName(slice any, name string) bool {
+	switch s := slice.(type) {
+	case []v1.EnvVar:
+		for i := range s {
+			if s[i].Name == name {
+				return true
+			}
+		}
+	case []v1.Volume:
+		for i := range s {
+			if s[i].Name == name {
+				return true
+			}
+		}
+	case []v1.VolumeMount:
+		for i := range s {
+			if s[i].Name == name {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
@@ -338,20 +356,24 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 		case containerNameWayVNC:
 			hasWayVNC = true
 		default:
-			ps.Containers[i].Env = append(ps.Containers[i].Env, []v1.EnvVar{
-				{
+			if !sliceHasElementWithName(ps.Containers[i].Env, envNameXDGRuntimeDir) {
+				ps.Containers[i].Env = append(ps.Containers[i].Env, v1.EnvVar{
 					Name:  envNameXDGRuntimeDir,
 					Value: pathXDGRuntimeDir,
-				},
-				{
+				})
+			}
+			if !sliceHasElementWithName(ps.Containers[i].Env, envNameWaylandDisplay) {
+				ps.Containers[i].Env = append(ps.Containers[i].Env, v1.EnvVar{
 					Name:  envNameWaylandDisplay,
 					Value: defaultWaylandDisplay,
-				},
-			}...)
-			ps.Containers[i].VolumeMounts = append(ps.Containers[i].VolumeMounts, v1.VolumeMount{
-				Name:      volumeNameXDGRuntimeDir,
-				MountPath: pathXDGRuntimeDir,
-			})
+				})
+			}
+			if !sliceHasElementWithName(ps.Containers[i].VolumeMounts, volumeNameXDGRuntimeDir) {
+				ps.Containers[i].VolumeMounts = append(ps.Containers[i].VolumeMounts, v1.VolumeMount{
+					Name:      volumeNameXDGRuntimeDir,
+					MountPath: pathXDGRuntimeDir,
+				})
+			}
 		}
 	}
 
@@ -482,14 +504,14 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 		})
 	}
 
-	if !hasNoVNC || !hasSway || !hasWayVNC {
-		if ps.SecurityContext == nil {
-			ps.SecurityContext = &v1.PodSecurityContext{}
-		}
-		if ps.SecurityContext.FSGroup == nil {
-			fsGroup := int64(65534)
-			ps.SecurityContext.FSGroup = &fsGroup
-		}
+	if ps.SecurityContext == nil {
+		ps.SecurityContext = &v1.PodSecurityContext{}
+	}
+	if ps.SecurityContext.FSGroup == nil {
+		fsGroup := int64(65534)
+		ps.SecurityContext.FSGroup = &fsGroup
+	}
+	if !sliceHasElementWithName(ps.Volumes, volumeNameXDGRuntimeDir) {
 		ps.Volumes = append(ps.Volumes, v1.Volume{
 			Name: volumeNameXDGRuntimeDir,
 			VolumeSource: v1.VolumeSource{
