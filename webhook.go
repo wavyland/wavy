@@ -34,6 +34,8 @@ import (
 	"github.com/spf13/cobra"
 	"gomodules.xyz/jsonpatch/v2"
 	admissionv1 "k8s.io/api/admission/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -149,8 +151,8 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 		UID:     admissionReview.Request.UID,
 	}
 
-	var pod v1.Pod
-	if err := json.Unmarshal(admissionReview.Request.Object.Raw, &pod); err != nil {
+	ps, om, getObject, err := getPodSpec(admissionReview.Request)
+	if err != nil {
 		errorCounter.Inc()
 		msg := fmt.Sprintf("could not unmarshal extension to pod spec: %v:", err)
 		level.Error(logger).Log("err", msg)
@@ -158,13 +160,13 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if requiresPatch(&pod.ObjectMeta) {
+	if requiresPatch(om) {
 		o := patchOptions{
-			basicAuthSecret: pod.ObjectMeta.Annotations[annotationKeyBasicAuthSecret],
-			tlsSecret:       pod.ObjectMeta.Annotations[annotationKeyTLSSecret],
+			basicAuthSecret: om.Annotations[annotationKeyBasicAuthSecret],
+			tlsSecret:       om.Annotations[annotationKeyTLSSecret],
 		}
-		pod.Spec = *patchPodSpec(&pod.Spec, &o)
-		newBytes, err := json.Marshal(pod)
+		ps = patchPodSpec(ps, &o)
+		newBytes, err := json.Marshal(getObject(ps))
 		if err != nil {
 			errorCounter.Inc()
 			msg := fmt.Sprintf("could not marshal new pod: %v:", err)
@@ -213,7 +215,107 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func getPodSpec(ar *admissionv1.AdmissionRequest) (*v1.PodSpec, *metav1.ObjectMeta, func(*v1.PodSpec) runtime.Object, error) {
+	var ps v1.PodSpec
+	var om metav1.ObjectMeta
+	var fn func(*v1.PodSpec) runtime.Object
+	switch {
+	case ar.Kind.Group == "" && ar.Kind.Version == "v1" && ar.Kind.Kind == "Pod":
+		var pod v1.Pod
+		if err := json.Unmarshal(ar.Object.Raw, &pod); err != nil {
+			return nil, nil, nil, err
+		}
+		ps = pod.Spec
+		om = pod.ObjectMeta
+		fn = func(ps *v1.PodSpec) runtime.Object {
+			pod.Spec = *ps
+			return &pod
+		}
+	case ar.Kind.Group == "apps" && ar.Kind.Version == "v1":
+		switch ar.Kind.Kind {
+		case "Deployment":
+			var d appsv1.Deployment
+			if err := json.Unmarshal(ar.Object.Raw, &d); err != nil {
+				return nil, nil, nil, err
+			}
+			ps = d.Spec.Template.Spec
+			om = d.ObjectMeta
+			fn = func(ps *v1.PodSpec) runtime.Object {
+				d.Spec.Template.Spec = *ps
+				return &d
+			}
+		case "DaemonSet":
+			var d appsv1.DaemonSet
+			if err := json.Unmarshal(ar.Object.Raw, &d); err != nil {
+				return nil, nil, nil, err
+			}
+			ps = d.Spec.Template.Spec
+			om = d.ObjectMeta
+			fn = func(ps *v1.PodSpec) runtime.Object {
+				d.Spec.Template.Spec = *ps
+				return &d
+			}
+		case "ReplicaSet":
+			var r appsv1.ReplicaSet
+			if err := json.Unmarshal(ar.Object.Raw, &r); err != nil {
+				return nil, nil, nil, err
+			}
+			ps = r.Spec.Template.Spec
+			om = r.ObjectMeta
+			fn = func(ps *v1.PodSpec) runtime.Object {
+				r.Spec.Template.Spec = *ps
+				return &r
+			}
+		case "StatefulSet":
+			var s appsv1.StatefulSet
+			if err := json.Unmarshal(ar.Object.Raw, &s); err != nil {
+				return nil, nil, nil, err
+			}
+			ps = s.Spec.Template.Spec
+			om = s.ObjectMeta
+			fn = func(ps *v1.PodSpec) runtime.Object {
+				s.Spec.Template.Spec = *ps
+				return &s
+			}
+		}
+	case ar.Kind.Group == "batch" && ar.Kind.Version == "v1":
+		switch ar.Kind.Kind {
+		case "Job":
+			var j batchv1.Job
+			if err := json.Unmarshal(ar.Object.Raw, &j); err != nil {
+				return nil, nil, nil, err
+			}
+			ps = j.Spec.Template.Spec
+			om = j.ObjectMeta
+			fn = func(ps *v1.PodSpec) runtime.Object {
+				j.Spec.Template.Spec = *ps
+				return &j
+			}
+		case "CronJob":
+			var j batchv1.CronJob
+			if err := json.Unmarshal(ar.Object.Raw, &j); err != nil {
+				return nil, nil, nil, err
+			}
+			ps = j.Spec.JobTemplate.Spec.Template.Spec
+			om = j.ObjectMeta
+			fn = func(ps *v1.PodSpec) runtime.Object {
+				j.Spec.JobTemplate.Spec.Template.Spec = *ps
+				return &j
+			}
+		}
+	default:
+		return nil, nil, nil, errors.New("this resource is not supported")
+	}
+
+	return &ps, &om, fn, nil
+}
+
 func requiresPatch(meta *metav1.ObjectMeta) bool {
+	for _, or := range meta.OwnerReferences {
+		if or.APIVersion == "apps/v1" && or.Kind == "Deployment" && or.Controller != nil && *or.Controller {
+			return false
+		}
+	}
 	return meta.Annotations[annotationKeyEnable] == annotationValueEnableTrue
 }
 

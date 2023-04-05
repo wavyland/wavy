@@ -1,4 +1,4 @@
-<p align="center"><img src="https://avatars.githubusercontent.com/u/128749691?s=150&v=4" width="150" /></p>
+<p align="center"><img src="https://avatars.githubusercontent.com/u/128749691" width="150" /></p>
 
 # Wavy
 
@@ -11,7 +11,7 @@ Wavy is a toolset for running GUI applications on Kubernetes.
 
 Wavy makes it possible to run containerized GUI desktop applications &mdash; think Inkscape or Libreoffice &mdash; on Kubernetes and makes them accessible via the browser.
 This workflow allows users to run applications in the cloud and access them from any device without needing to install any software.
-Wavy works by patching Kubernetes Pods that are annotated with `wavy.squat.ai/enable=true` to include the necessary tools.
+Wavy works by patching Kubernetes workloads that are annotated with `wavy.squat.ai/enable=true` to include the necessary tools.
 
 ## Getting Started
 
@@ -26,8 +26,8 @@ For example, the following script could be used to deploy Inkscape:
 
 ```shell
 cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   annotations:
     wavy.squat.ai/enable: "true"
@@ -36,20 +36,28 @@ metadata:
     app.kubernetes.io/name: inkscape
   name: inkscape
 spec:
-  containers:
-  - image: debian:stable-slim
-    name: inkscape
-    args:
-    - /bin/bash
-    - -c
-    - apt-get update && apt-get install -y procps inkscape && inkscape
-    readinessProbe:
-      exec:
-        command:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: inkscape
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: inkscape
+    spec:
+      containers:
+      - image: debian:stable-slim
+        name: inkscape
+        args:
         - /bin/bash
         - -c
-        - ps -o command | grep ^inkscape
-      periodSeconds: 5
+        - apt-get update && apt-get install -y procps inkscape && exec inkscape
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - ps -o command | grep ^inkscape
+          periodSeconds: 5
 ---
 apiVersion: v1
 kind: Secret
@@ -81,7 +89,7 @@ EOF
 Once the application is ready, it can be accessed by connecting to the Service, for example by defining an Ingress or by port-forwarding:
 
 ```shell
-kubectl wait --for=condition=Ready pod/inkscape --timeout=-1s
+kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=inkscape --timeout=-1s
 kubectl port-forward svc/inkscape http
 ```
 
@@ -89,7 +97,7 @@ Now, Inkscape can be used pointing a browser to [http://localhost:8080](http://l
 
 ## Annotations
 
-The following annotations can be added to any Kubernetes Pod to configure Wavy.
+The following annotations can be added to any Kubernetes Pod, DaemonSet, Deployment, ReplicaSet, StatefulSet, CronJob, or Job to configure Wavy:
 
 |Name|type|examples|
 |----|----|-------|
@@ -99,7 +107,7 @@ The following annotations can be added to any Kubernetes Pod to configure Wavy.
 
 ### enable
 
-When annotated with `wavy.squat.ai/enable=true`, Pods are patched by Wavy so that the applications running in them can render their GUI and the GUI is exposed on a port named `wavy-http`.
+When annotated with `wavy.squat.ai/enable=true`, workloads are patched by Wavy so that the applications running in them can render their GUI and the GUI is exposed on a port named `wavy-http`.
 
 > **Note**: Kubernetes annotation values are required to be strings; this means the value of this annotation must be the YAML string literal `"true"` rather than the YAML boolean `true`.
 

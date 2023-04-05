@@ -15,19 +15,29 @@ webhooks:
     matchExpressions:
       - key: app.kubernetes.io/name
         operator: NotIn
-        values: ["wavy"]
+        values: [wavy]
   rules:
   - apiGroups:   [""]
-    apiVersions: ["v1"]
-    operations:  ["CREATE"]
-    resources:   ["pods"]
+    apiVersions: [v1]
+    operations:  [CREATE]
+    resources:   [pods]
+    scope:       Namespaced
+  - apiGroups:   [apps]
+    apiVersions: [v1]
+    operations:  [CREATE]
+    resources:   [daemonsets, deployments, replicasets, statefulsets]
+    scope:       Namespaced
+  - apiGroups:   [batch]
+    apiVersions: [v1]
+    operations:  [CREATE]
+    resources:   [cronjobs, jobs]
     scope:       Namespaced
   clientConfig:
     service:
       namespace: wavy
       name: wavy-webhook
       path: /mutate
-  admissionReviewVersions: ["v1"]
+  admissionReviewVersions: [v1]
   sideEffects: None
   timeoutSeconds: 5
 ---
