@@ -67,6 +67,7 @@ spec:
       containers:
       - name: webhook
         image: ghcr.io/wavyland/wavy
+        imagePullPolicy: IfNotPresent
         args:
         - webhook
         - --certificate=/run/secrets/tls/tls.crt

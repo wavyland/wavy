@@ -114,7 +114,8 @@ lint: header $(GOLINT_BINARY)
 		exit 1; \
 	fi
 
-unit:
+unit: container
+	docker tag $(IMAGE):$(ARCH)-$(VERSION) $(IMAGE)
 	go test --race ./...
 
 test: lint unit
