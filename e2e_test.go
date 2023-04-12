@@ -39,7 +39,8 @@ func TestWebhook(t *testing.T) {
 	e, err := e2e.NewKindEnvironment()
 	testutil.Ok(t, err)
 	t.Cleanup(e.Close)
-	testutil.Ok(t, kind(context.Background(), e, "load", "docker-image", "ghcr.io/wavyland/wavy").Run())
+	out, err := kind(context.Background(), e, "load", "docker-image", "ghcr.io/wavyland/wavy").CombinedOutput()
+	testutil.Ok(t, err, string(out))
 	a := e.Runnable("alpine").Init(e2e.StartOptions{
 		Image: "alpine",
 		Command: e2e.Command{
@@ -48,8 +49,12 @@ func TestWebhook(t *testing.T) {
 		},
 	})
 	testutil.Ok(t, a.Start())
-	testutil.Ok(t, kubectl(context.Background(), e, "apply", "--filename", "manifests/webhook.yaml").Run())
-	testutil.Ok(t, kubectl(context.Background(), e, "rollout", "status", "deployment", "wavy-webhook", "--namespace", "wavy").Run())
-	testutil.Ok(t, kubectl(context.Background(), e, "patch", "deployment", "alpine", "--patch", `{"metadata": {"annotations": {"wavy.squat.ai/enable": "true"}}}`).Run())
-	testutil.Ok(t, kubectl(context.Background(), e, "rollout", "status", "deployment", "alpine").Run())
+	out, err = kubectl(context.Background(), e, "apply", "--filename", "manifests/webhook.yaml").CombinedOutput()
+	testutil.Ok(t, err, string(out))
+	out, err = kubectl(context.Background(), e, "rollout", "status", "deployment", "wavy-webhook", "--namespace", "wavy").CombinedOutput()
+	testutil.Ok(t, err, string(out))
+	out, err = kubectl(context.Background(), e, "patch", "deployment", "alpine", "--patch", `{"metadata": {"annotations": {"wavy.squat.ai/enable": "true"}}}`).CombinedOutput()
+	testutil.Ok(t, err, string(out))
+	out, err = kubectl(context.Background(), e, "rollout", "status", "deployment", "alpine").CombinedOutput()
+	testutil.Ok(t, err, string(out))
 }

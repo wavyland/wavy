@@ -510,7 +510,7 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 		}
 		ps.Containers = append(ps.Containers, v1.Container{
 			Name:    containerNameSway,
-			Image:   "ghcr.io/wavyland/sway:seatd-launch",
+			Image:   "ghcr.io/wavyland/sway",
 			Command: cmd,
 			Env:     es,
 			Resources: v1.ResourceRequirements{
