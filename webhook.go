@@ -37,6 +37,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -51,15 +52,21 @@ const (
 	envNameWLRBackends           = "WLR_BACKENDS"
 	portNameVNC                  = "wavy-vnc"
 	portNameHTTP                 = "wavy-http"
-	volumeNameXDGRuntimeDir      = "wavy-xdg-runtime-dir"
+	volumeNameRunUdevData        = "wavy-run-udev-data"
 	volumeNameTLS                = "wavy-tls"
-	pathXDGRuntimeDir            = "/var/lib/wavy/xdg"
+	volumeNameXDGRuntimeDir      = "wavy-xdg-runtime-dir"
+	pathRunUdevData              = "/run/udev/data"
 	pathTLS                      = "/var/lib/wavy/tls"
+	pathXDGRuntimeDir            = "/var/lib/wavy/xdg"
 	defaultWaylandDisplay        = "wayland-1"
 	annotationKeyEnable          = "wavy.squat.ai/enable"
 	annotationKeyTLSSecret       = "wavy.squat.ai/tls-secret"
 	annotationKeyBasicAuthSecret = "wavy.squat.ai/basic-auth-secret"
-	annotationValueEnableTrue    = "true"
+	annotationKeyHost            = "wavy.squat.ai/host"
+	annotationValueTrue          = "true"
+	resourceNameDRI              = v1.ResourceName("squat.ai/dri")
+	resourceNameInput            = v1.ResourceName("squat.ai/input")
+	resourceNameTTY              = v1.ResourceName("squat.ai/tty")
 )
 
 var (
@@ -163,6 +170,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 	if requiresPatch(om) {
 		o := patchOptions{
 			basicAuthSecret: om.Annotations[annotationKeyBasicAuthSecret],
+			host:            om.Annotations[annotationKeyHost] == annotationValueTrue,
 			tlsSecret:       om.Annotations[annotationKeyTLSSecret],
 		}
 		ps = patchPodSpec(ps, &o)
@@ -310,11 +318,12 @@ func getPodSpec(ar *admissionv1.AdmissionRequest) (*v1.PodSpec, *metav1.ObjectMe
 }
 
 func requiresPatch(meta *metav1.ObjectMeta) bool {
-	return meta.Annotations[annotationKeyEnable] == annotationValueEnableTrue
+	return meta.Annotations[annotationKeyEnable] == annotationValueTrue
 }
 
 type patchOptions struct {
 	basicAuthSecret string
+	host            bool
 	tlsSecret       string
 }
 
@@ -458,25 +467,57 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 	}
 
 	if !hasSway {
+		es := []v1.EnvVar{
+			{
+				Name:  envNameXDGRuntimeDir,
+				Value: pathXDGRuntimeDir,
+			},
+		}
+		vs := []v1.VolumeMount{
+			{
+				Name:      volumeNameXDGRuntimeDir,
+				MountPath: pathXDGRuntimeDir,
+			},
+		}
+		var cmd []string
+		var rs v1.ResourceList
+		var sc *v1.SecurityContext
+		if o.host {
+			cmd = append(cmd, "seatd-launch", "sway")
+			vs = append(vs, []v1.VolumeMount{
+				{
+					Name:      volumeNameRunUdevData,
+					MountPath: pathRunUdevData,
+				},
+			}...)
+			rs = v1.ResourceList{
+				resourceNameDRI:   *resource.NewQuantity(1, resource.DecimalSI),
+				resourceNameInput: *resource.NewQuantity(1, resource.DecimalSI),
+				resourceNameTTY:   *resource.NewQuantity(1, resource.DecimalSI),
+			}
+			sc = &v1.SecurityContext{
+				Capabilities: &v1.Capabilities{
+					Add: []v1.Capability{
+						v1.Capability("SYS_TTY_CONFIG"),
+					},
+				},
+			}
+		} else {
+			es = append(es, v1.EnvVar{
+				Name:  envNameWLRBackends,
+				Value: "headless",
+			})
+		}
 		ps.Containers = append(ps.Containers, v1.Container{
-			Name:  containerNameSway,
-			Image: "ghcr.io/wavyland/sway",
-			Env: []v1.EnvVar{
-				{
-					Name:  envNameXDGRuntimeDir,
-					Value: pathXDGRuntimeDir,
-				},
-				{
-					Name:  envNameWLRBackends,
-					Value: "headless",
-				},
+			Name:    containerNameSway,
+			Image:   "ghcr.io/wavyland/sway:seatd-launch",
+			Command: cmd,
+			Env:     es,
+			Resources: v1.ResourceRequirements{
+				Limits: rs,
 			},
-			VolumeMounts: []v1.VolumeMount{
-				{
-					Name:      volumeNameXDGRuntimeDir,
-					MountPath: pathXDGRuntimeDir,
-				},
-			},
+			SecurityContext: sc,
+			VolumeMounts:    vs,
 		})
 	}
 
@@ -518,6 +559,20 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 				EmptyDir: &v1.EmptyDirVolumeSource{},
 			},
 		})
+	}
+	if o.host {
+		if !sliceHasElementWithName(ps.Volumes, volumeNameRunUdevData) {
+			hostPathDirectory := v1.HostPathDirectory
+			ps.Volumes = append(ps.Volumes, v1.Volume{
+				Name: volumeNameRunUdevData,
+				VolumeSource: v1.VolumeSource{
+					HostPath: &v1.HostPathVolumeSource{
+						Path: pathRunUdevData,
+						Type: &hostPathDirectory,
+					},
+				},
+			})
+		}
 	}
 
 	return ps
