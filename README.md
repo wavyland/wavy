@@ -104,6 +104,7 @@ The following annotations can be added to any Kubernetes Pod, DaemonSet, Deploym
 |[wavy.squat.ai/enable](#enable)|boolean|`"true"`|
 |[wavy.squat.ai/basic-auth-secret](#basic-auth-secret)|string|`app-secret`|
 |[wavy.squat.ai/tls-secret](#tls-secret)|string|`app-tls`|
+|[wavy.squat.ai/host](#host)|boolean|`"true"`|
 
 ### enable
 
@@ -123,3 +124,13 @@ See the [Kubernetes documentation on secrets](https://kubernetes.io/docs/concept
 Workloads annotated with `wavy.squat.ai/tls-secret` will expose the HTTP service over TLS using the certificate and key contained in the referenced secret.
 The secret is expected to be a Kubernetes secret of type `kubernetes.io/tls` and must provide values for the `tls.crt` and `tls.key` keys.
 See the [Kubernetes documentation on secrets](https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets) for more information.
+
+### host
+
+When workloads are annotated with `wavy.squat.ai/host=true`, Wavy renders their applications on a physical device connected to the host, for example a monitor connected to a server.
+This mode of operation allows nodes in a Kubernetes cluster to serve as display kiosks rendering an application on a display.
+
+> **Note**: Wavy accesses the host's devices without using privileged Pods. This is made possible by the [generic-device-plugin](https://github.com/squat/generic-device-plugin), which enables the Kubernetes scheduler to allocate access to Linux devices. The generic-device-plugin must be configured with the following flags to discover the devices needed by Wavy:
+1. `{"name": "tty", "groups": [{"paths": [{"limit": 10, "path": "/dev/tty0"}, {"path": "/dev/tty[1-9]"}]}]}`
+2. `{"name": "input", "groups": [{"count": 10, "paths": [{"path": "/dev/input"}]}]}`
+3. `{"name": "dri", "groups": [{"count": 10, "paths": [{"path": "/dev/dri"}]}]}`
