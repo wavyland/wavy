@@ -9,7 +9,7 @@ Wavy is a toolset for running GUI applications on Kubernetes.
 
 ## Overview
 
-Wavy makes it possible to run containerized GUI desktop applications &mdash; think Inkscape or Libreoffice &mdash; on Kubernetes and makes them accessible via the browser.
+Wavy makes it possible to run containerized GUI desktop applications &mdash; think Inkscape or Libreoffice &mdash; on Kubernetes and makes them accessible via the browser or on display connected to a node.
 This workflow allows users to run applications in the cloud and access them from any device without needing to install any software.
 Wavy works by patching Kubernetes workloads that are annotated with `wavy.squat.ai/enable=true` to include the necessary tools.
 
@@ -131,6 +131,6 @@ When workloads are annotated with `wavy.squat.ai/host=true`, Wavy renders their 
 This mode of operation allows nodes in a Kubernetes cluster to serve as display kiosks rendering an application on a display.
 
 > **Note**: Wavy accesses the host's devices without using privileged Pods. This is made possible by the [generic-device-plugin](https://github.com/squat/generic-device-plugin), which enables the Kubernetes scheduler to allocate access to Linux devices. The generic-device-plugin must be configured with the following flags to discover the devices needed by Wavy:
-1. `{"name": "tty", "groups": [{"paths": [{"limit": 10, "path": "/dev/tty0"}, {"path": "/dev/tty[1-9]"}]}]}`
-2. `{"name": "input", "groups": [{"count": 10, "paths": [{"path": "/dev/input"}]}]}`
-3. `{"name": "dri", "groups": [{"count": 10, "paths": [{"path": "/dev/dri"}]}]}`
+1. `--device={"name": "tty", "groups": [{"paths": [{"limit": 10, "path": "/dev/tty0"}, {"path": "/dev/tty[1-9]"}]}]}`
+2. `--device={"name": "input", "groups": [{"count": 10, "paths": [{"path": "/dev/input"}]}]}`
+3. `--device={"name": "dri", "groups": [{"count": 10, "paths": [{"path": "/dev/dri"}]}]}`
