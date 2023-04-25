@@ -26,8 +26,8 @@ For example, the following script could be used to deploy Inkscape:
 
 ```shell
 cat <<EOF | kubectl apply -f -
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Pod
 metadata:
   annotations:
     wavy.squat.ai/enable: "true"
@@ -36,28 +36,20 @@ metadata:
     app.kubernetes.io/name: inkscape
   name: inkscape
 spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: inkscape
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: inkscape
-    spec:
-      containers:
-      - image: debian:stable-slim
-        name: inkscape
-        args:
+  containers:
+  - image: debian:stable-slim
+    name: inkscape
+    args:
+    - /bin/bash
+    - -c
+    - apt-get update && apt-get install -y procps inkscape && exec inkscape
+    readinessProbe:
+      exec:
+        command:
         - /bin/bash
         - -c
-        - apt-get update && apt-get install -y procps inkscape && exec inkscape
-        readinessProbe:
-          exec:
-            command:
-            - /bin/bash
-            - -c
-            - ps -o command | grep ^inkscape
-          periodSeconds: 5
+        - ps -o command | grep ^inkscape
+      periodSeconds: 5
 ---
 apiVersion: v1
 kind: Secret
