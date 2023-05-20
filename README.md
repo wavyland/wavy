@@ -22,7 +22,7 @@ kubectl apply -f https://raw.githubusercontent.com/wavyland/wavy/main/manifests/
 ```
 
 Now, deploy an application that renders a GUI and ensure it is annotated with `wavy.squat.ai/enable=true`
-For example, the following script could be used to deploy Inkscape:
+For example, the following script could be used to deploy Signal Desktop:
 
 ```shell
 cat <<EOF | kubectl apply -f -
@@ -31,32 +31,34 @@ kind: Pod
 metadata:
   annotations:
     wavy.squat.ai/enable: "true"
-    wavy.squat.ai/basic-auth-secret: inkscape
+    wavy.squat.ai/basic-auth-secret: signal
   labels:
-    app.kubernetes.io/name: inkscape
-  name: inkscape
+    app.kubernetes.io/name: signal
+  name: signal
 spec:
   containers:
-  - image: debian:stable-slim
-    name: inkscape
+  - image: tianon/signal-desktop:6.18.0
+    name: signal
+    command:
+    - signal-desktop
     args:
-    - /bin/bash
-    - -c
-    - apt-get update && apt-get install -y procps inkscape && exec inkscape
-    readinessProbe:
-      exec:
-        command:
-        - /bin/bash
-        - -c
-        - ps -o command | grep ^inkscape
-      periodSeconds: 5
+    - --no-sandbox
+    securityContext:
+      runAsUser: 65534
+      runAsGroup: 65534
+    volumeMounts:
+    - name: config
+      mountPath: /nonexistent/.config
+  volumes:
+  - name: config
+    emptyDir: {}
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   labels:
-    app.kubernetes.io/name: inkscape
-  name: inkscape
+    app.kubernetes.io/name: signal
+  name: signal
 type: kubernetes.io/basic-auth
 stringData:
   username: user
@@ -65,12 +67,12 @@ stringData:
 apiVersion: v1
 kind: Service
 metadata:
-  name: inkscape
+  name: signal
   labels:
-    app.kubernetes.io/name: inkscape
+    app.kubernetes.io/name: signal
 spec:
   selector:
-    app.kubernetes.io/name: inkscape
+    app.kubernetes.io/name: signal
   ports:
     - port: 8080
       name: http
@@ -81,11 +83,11 @@ EOF
 Once the application is ready, it can be accessed by connecting to the Service, for example by defining an Ingress or by port-forwarding:
 
 ```shell
-kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=inkscape --timeout=-1s
-kubectl port-forward svc/inkscape http
+kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=signal --timeout=-1s
+kubectl port-forward svc/signal http
 ```
 
-Now, Inkscape can be used pointing a browser to [http://localhost:8080](http://localhost:8080) and logging in with the username `user` and the password `pass`.
+Now, Signal can be used pointing a browser to [http://localhost:8080](http://localhost:8080) and logging in with the username `user` and the password `pass`.
 
 ## Annotations
 
@@ -97,6 +99,7 @@ The following annotations can be added to any Kubernetes Pod, DaemonSet, Deploym
 |[wavy.squat.ai/basic-auth-secret](#basic-auth-secret)|string|`app-secret`|
 |[wavy.squat.ai/tls-secret](#tls-secret)|string|`app-tls`|
 |[wavy.squat.ai/host](#host)|boolean|`"true"`|
+|[wavy.squat.ai/x](#x)|boolean|`"true"`|
 
 ### enable
 
@@ -126,3 +129,10 @@ This mode of operation allows nodes in a Kubernetes cluster to serve as display 
 1. `--device={"name": "tty", "groups": [{"paths": [{"limit": 10, "path": "/dev/tty0"}, {"path": "/dev/tty[1-9]"}]}]}`
 2. `--device={"name": "input", "groups": [{"count": 10, "paths": [{"path": "/dev/input"}]}]}`
 3. `--device={"name": "dri", "groups": [{"count": 10, "paths": [{"path": "/dev/dri"}]}]}`
+
+### x
+
+Support for X is enabled by default.
+The `wavy.squat.ai/x=false` annotation can be used to disable support for X in the workload.
+
+> **Note**: Kubernetes annotation values are required to be strings; this means the value of this annotation must be the YAML string literal `"false"` rather than the YAML boolean `false`.
