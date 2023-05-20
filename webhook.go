@@ -47,23 +47,28 @@ const (
 	containerNameNoVNC           = "wavy-novnc"
 	containerNameSway            = "wavy-sway"
 	containerNameWayVNC          = "wavy-wayvnc"
-	envNameXDGRuntimeDir         = "XDG_RUNTIME_DIR"
+	envNameDisplay               = "DISPLAY"
 	envNameWaylandDisplay        = "WAYLAND_DISPLAY"
 	envNameWLRBackends           = "WLR_BACKENDS"
+	envNameXDGRuntimeDir         = "XDG_RUNTIME_DIR"
 	portNameVNC                  = "wavy-vnc"
 	portNameHTTP                 = "wavy-http"
 	volumeNameRunUdevData        = "wavy-run-udev-data"
 	volumeNameTLS                = "wavy-tls"
+	volumeNameTmp                = "wavy-tmp"
 	volumeNameXDGRuntimeDir      = "wavy-xdg-runtime-dir"
 	pathRunUdevData              = "/run/udev/data"
 	pathTLS                      = "/var/lib/wavy/tls"
+	pathTmp                      = "/tmp"
 	pathXDGRuntimeDir            = "/var/lib/wavy/xdg"
 	defaultWaylandDisplay        = "wayland-1"
 	annotationKeyEnable          = "wavy.squat.ai/enable"
 	annotationKeyTLSSecret       = "wavy.squat.ai/tls-secret"
 	annotationKeyBasicAuthSecret = "wavy.squat.ai/basic-auth-secret"
 	annotationKeyHost            = "wavy.squat.ai/host"
+	annotationKeyX               = "wavy.squat.ai/x"
 	annotationValueTrue          = "true"
+	annotationValueFalse         = "false"
 	resourceNameDRI              = v1.ResourceName("squat.ai/dri")
 	resourceNameInput            = v1.ResourceName("squat.ai/input")
 	resourceNameTTY              = v1.ResourceName("squat.ai/tty")
@@ -172,6 +177,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 			basicAuthSecret: om.Annotations[annotationKeyBasicAuthSecret],
 			host:            om.Annotations[annotationKeyHost] == annotationValueTrue,
 			tlsSecret:       om.Annotations[annotationKeyTLSSecret],
+			x:               om.Annotations[annotationKeyHost] != annotationValueFalse,
 		}
 		ps = patchPodSpec(ps, &o)
 		newBytes, err := json.Marshal(getObject(ps))
@@ -325,6 +331,7 @@ type patchOptions struct {
 	basicAuthSecret string
 	host            bool
 	tlsSecret       string
+	x               bool
 }
 
 func sliceHasElementWithName(slice any, name string) bool {
@@ -365,6 +372,12 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 		case containerNameWayVNC:
 			hasWayVNC = true
 		default:
+			if o.x && !sliceHasElementWithName(ps.Containers[i].Env, envNameDisplay) {
+				ps.Containers[i].Env = append(ps.Containers[i].Env, v1.EnvVar{
+					Name:  envNameDisplay,
+					Value: ":0",
+				})
+			}
 			if !sliceHasElementWithName(ps.Containers[i].Env, envNameXDGRuntimeDir) {
 				ps.Containers[i].Env = append(ps.Containers[i].Env, v1.EnvVar{
 					Name:  envNameXDGRuntimeDir,
@@ -375,6 +388,12 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 				ps.Containers[i].Env = append(ps.Containers[i].Env, v1.EnvVar{
 					Name:  envNameWaylandDisplay,
 					Value: defaultWaylandDisplay,
+				})
+			}
+			if o.x && !sliceHasElementWithName(ps.Containers[i].VolumeMounts, volumeNameTmp) {
+				ps.Containers[i].VolumeMounts = append(ps.Containers[i].VolumeMounts, v1.VolumeMount{
+					Name:      volumeNameTmp,
+					MountPath: pathTmp,
 				})
 			}
 			if !sliceHasElementWithName(ps.Containers[i].VolumeMounts, volumeNameXDGRuntimeDir) {
@@ -479,6 +498,12 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 				MountPath: pathXDGRuntimeDir,
 			},
 		}
+		if o.x {
+			vs = append(vs, v1.VolumeMount{
+				Name:      volumeNameTmp,
+				MountPath: pathTmp,
+			})
+		}
 		var cmd []string
 		var rs v1.ResourceList
 		var sc *v1.SecurityContext
@@ -552,6 +577,14 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 		fsGroup := int64(65534)
 		ps.SecurityContext.FSGroup = &fsGroup
 	}
+	if o.x && !sliceHasElementWithName(ps.Volumes, volumeNameTmp) {
+		ps.Volumes = append(ps.Volumes, v1.Volume{
+			Name: volumeNameTmp,
+			VolumeSource: v1.VolumeSource{
+				EmptyDir: &v1.EmptyDirVolumeSource{},
+			},
+		})
+	}
 	if !sliceHasElementWithName(ps.Volumes, volumeNameXDGRuntimeDir) {
 		ps.Volumes = append(ps.Volumes, v1.Volume{
 			Name: volumeNameXDGRuntimeDir,
@@ -560,19 +593,17 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 			},
 		})
 	}
-	if o.host {
-		if !sliceHasElementWithName(ps.Volumes, volumeNameRunUdevData) {
-			hostPathDirectory := v1.HostPathDirectory
-			ps.Volumes = append(ps.Volumes, v1.Volume{
-				Name: volumeNameRunUdevData,
-				VolumeSource: v1.VolumeSource{
-					HostPath: &v1.HostPathVolumeSource{
-						Path: pathRunUdevData,
-						Type: &hostPathDirectory,
-					},
+	if o.host && !sliceHasElementWithName(ps.Volumes, volumeNameRunUdevData) {
+		hostPathDirectory := v1.HostPathDirectory
+		ps.Volumes = append(ps.Volumes, v1.Volume{
+			Name: volumeNameRunUdevData,
+			VolumeSource: v1.VolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: pathRunUdevData,
+					Type: &hostPathDirectory,
 				},
-			})
-		}
+			},
+		})
 	}
 
 	return ps
