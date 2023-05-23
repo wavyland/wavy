@@ -214,5 +214,5 @@ vendor:
 	go mod tidy
 	go mod vendor
 
-$(STATICCHECK_BINARY):
+$(STATICCHECK_BINARY): vendor
 	go build -o $@ honnef.co/go/tools/cmd/staticcheck
