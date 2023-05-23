@@ -79,7 +79,7 @@ jobs:
       run: make unit
 
   push:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.event_name != 'schedule'
     needs:
     - build
     - linux
