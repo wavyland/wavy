@@ -51,6 +51,8 @@ func TestWebhook(t *testing.T) {
 	testutil.Ok(t, a.Start())
 	out, err = kubectl(context.Background(), e, "apply", "--filename", "manifests/webhook.yaml").CombinedOutput()
 	testutil.Ok(t, err, string(out))
+	out, err = kubectl(context.Background(), e, "wait", "--for", "condition=complete", "job", "cert-gen", "--namespace", "wavy", "--timeout", "1m").CombinedOutput()
+	testutil.Ok(t, err, string(out))
 	out, err = kubectl(context.Background(), e, "rollout", "status", "deployment", "wavy-webhook", "--namespace", "wavy").CombinedOutput()
 	testutil.Ok(t, err, string(out))
 	out, err = kubectl(context.Background(), e, "patch", "deployment", "alpine", "--patch", `{"metadata": {"annotations": {"wavy.squat.ai/enable": "true"}}}`).CombinedOutput()
