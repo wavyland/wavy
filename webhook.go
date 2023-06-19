@@ -177,7 +177,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 			basicAuthSecret: om.Annotations[annotationKeyBasicAuthSecret],
 			host:            om.Annotations[annotationKeyHost] == annotationValueTrue,
 			tlsSecret:       om.Annotations[annotationKeyTLSSecret],
-			x:               om.Annotations[annotationKeyHost] != annotationValueFalse,
+			x:               om.Annotations[annotationKeyX] != annotationValueFalse,
 		}
 		ps = patchPodSpec(ps, &o)
 		newBytes, err := json.Marshal(getObject(ps))
