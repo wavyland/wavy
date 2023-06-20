@@ -43,15 +43,7 @@ spec:
     - signal-desktop
     args:
     - --no-sandbox
-    securityContext:
-      runAsUser: 65534
-      runAsGroup: 65534
-    volumeMounts:
-    - name: config
-      mountPath: /nonexistent/.config
-  volumes:
-  - name: config
-    emptyDir: {}
+    - --user-data-dir=/root
 ---
 apiVersion: v1
 kind: Secret

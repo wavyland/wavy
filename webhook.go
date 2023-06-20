@@ -47,9 +47,11 @@ const (
 	containerNameNoVNC           = "wavy-novnc"
 	containerNameSway            = "wavy-sway"
 	containerNameWayVNC          = "wavy-wayvnc"
+	containerNameXauth           = "wavy-xauth"
 	envNameDisplay               = "DISPLAY"
 	envNameWaylandDisplay        = "WAYLAND_DISPLAY"
 	envNameWLRBackends           = "WLR_BACKENDS"
+	envNameXauthority            = "XAUTHORITY"
 	envNameXDGRuntimeDir         = "XDG_RUNTIME_DIR"
 	portNameVNC                  = "wavy-vnc"
 	portNameHTTP                 = "wavy-http"
@@ -60,6 +62,7 @@ const (
 	pathRunUdevData              = "/run/udev/data"
 	pathTLS                      = "/var/lib/wavy/tls"
 	pathTmp                      = "/tmp"
+	pathXauthority               = "/var/lib/wavy/xdg/.Xauthority"
 	pathXDGRuntimeDir            = "/var/lib/wavy/xdg"
 	defaultWaylandDisplay        = "wayland-1"
 	annotationKeyEnable          = "wavy.squat.ai/enable"
@@ -363,6 +366,7 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 	var hasNoVNC bool
 	var hasSway bool
 	var hasWayVNC bool
+	var hasXauth bool
 	for i := range ps.Containers {
 		switch ps.Containers[i].Name {
 		case containerNameNoVNC:
@@ -372,11 +376,19 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 		case containerNameWayVNC:
 			hasWayVNC = true
 		default:
-			if o.x && !sliceHasElementWithName(ps.Containers[i].Env, envNameDisplay) {
-				ps.Containers[i].Env = append(ps.Containers[i].Env, v1.EnvVar{
-					Name:  envNameDisplay,
-					Value: ":0",
-				})
+			if o.x {
+				if !sliceHasElementWithName(ps.Containers[i].Env, envNameDisplay) {
+					ps.Containers[i].Env = append(ps.Containers[i].Env, v1.EnvVar{
+						Name:  envNameDisplay,
+						Value: ":0",
+					})
+				}
+				if !sliceHasElementWithName(ps.Containers[i].Env, envNameXauthority) {
+					ps.Containers[i].Env = append(ps.Containers[i].Env, v1.EnvVar{
+						Name:  envNameXauthority,
+						Value: pathXauthority,
+					})
+				}
 			}
 			if !sliceHasElementWithName(ps.Containers[i].Env, envNameXDGRuntimeDir) {
 				ps.Containers[i].Env = append(ps.Containers[i].Env, v1.EnvVar{
@@ -402,6 +414,13 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 					MountPath: pathXDGRuntimeDir,
 				})
 			}
+		}
+	}
+
+	for i := range ps.InitContainers {
+		switch ps.InitContainers[i].Name {
+		case containerNameXauth:
+			hasXauth = true
 		}
 	}
 
@@ -503,6 +522,10 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 				Name:      volumeNameTmp,
 				MountPath: pathTmp,
 			})
+			es = append(es, v1.EnvVar{
+				Name:  envNameXauthority,
+				Value: pathXauthority,
+			})
 		}
 		var cmd []string
 		var rs v1.ResourceList
@@ -559,6 +582,27 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 				{
 					Name:  envNameWaylandDisplay,
 					Value: defaultWaylandDisplay,
+				},
+			},
+			VolumeMounts: []v1.VolumeMount{
+				{
+					Name:      volumeNameXDGRuntimeDir,
+					MountPath: pathXDGRuntimeDir,
+				},
+			},
+		})
+	}
+
+	if !hasXauth && o.x {
+		ps.InitContainers = append(ps.InitContainers, v1.Container{
+			Name:    containerNameXauth,
+			Image:   "ghcr.io/wavyland/sway",
+			Command: []string{"/bin/sh"},
+			Args:    []string{"-c", "mcookie | sed -e 's/^/add :0 . /' | xauth && chmod 660 $(XAUTHORITY)"},
+			Env: []v1.EnvVar{
+				{
+					Name:  envNameXauthority,
+					Value: pathXauthority,
 				},
 			},
 			VolumeMounts: []v1.VolumeMount{
