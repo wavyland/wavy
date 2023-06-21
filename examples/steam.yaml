@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    wavy.squat.ai/enable: "true"
+  labels:
+    app.kubernetes.io/name: steam
+  name: steam
+spec:
+  containers:
+  - image: kasmweb/steam:1.13.1
+    name: steam
+    command:
+    - /usr/games/steam

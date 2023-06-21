@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    wavy.squat.ai/enable: "true"
+  labels:
+    app.kubernetes.io/name: thunderbird
+  name: thunderbird
+spec:
+  containers:
+  - image: kasmweb/thunderbird:1.13.1
+    name: thunderbird
+    command:
+    - thunderbird

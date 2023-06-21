@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    wavy.squat.ai/enable: "true"
+  labels:
+    app.kubernetes.io/name: edge
+  name: edge
+spec:
+  containers:
+  - image: kasmweb/edge:1.13.1
+    name: edge
+    command:
+    - /opt/microsoft/msedge-dev/microsoft-edge
+    args:
+    - --password-store=basic
+    - --no-sandbox
+    - --ignore-gpu-blocklist
+    - --user-data-dir
+    - --no-first-run
+    - --simulate-outdated-no-au=Tue, 31 Dec 2099 23:59:59 GMT
+    - --start-maximized

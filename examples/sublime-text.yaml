@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    wavy.squat.ai/enable: "true"
+  labels:
+    app.kubernetes.io/name: sublime-text
+  name: sublime-text
+spec:
+  containers:
+  - image: kasmweb/sublime-text:1.13.1
+    name: sublime-text
+    command:
+    - /opt/sublime_text/sublime_text
+    args:
+    - --detached

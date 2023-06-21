@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    wavy.squat.ai/enable: "true"
+  labels:
+    app.kubernetes.io/name: gimp
+  name: gimp
+spec:
+  containers:
+  - image: kasmweb/gimp:1.13.1
+    name: gimp
+    command:
+    - /usr/bin/gimp
