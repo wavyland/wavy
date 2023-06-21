@@ -9,7 +9,7 @@ Wavy is a toolset for running GUI applications on Kubernetes.
 
 ## Overview
 
-Wavy makes it possible to run containerized GUI desktop applications &mdash; think Inkscape or Libreoffice &mdash; on Kubernetes and makes them accessible via the browser or on a display connected to a node.
+Wavy makes it possible to run containerized GUI desktop applications &mdash; think VS Code, or Libreoffice &mdash; on Kubernetes and makes them accessible via the browser or on a display connected to a node.
 This workflow allows users to run applications in the cloud and access them from any device without needing to install any software.
 Wavy works by patching Kubernetes workloads that are annotated with `wavy.squat.ai/enable=true` to include the necessary tools.
 
@@ -55,20 +55,6 @@ type: kubernetes.io/basic-auth
 stringData:
   username: user
   password: pass
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: signal
-  labels:
-    app.kubernetes.io/name: signal
-spec:
-  selector:
-    app.kubernetes.io/name: signal
-  ports:
-    - port: 8080
-      name: http
-      targetPort: wavy-http
 EOF
 ```
 
@@ -76,7 +62,7 @@ Once the application is ready, it can be accessed by connecting to the Service, 
 
 ```shell
 kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=signal --timeout=-1s
-kubectl port-forward svc/signal http
+kubectl port-forward signal 8080
 ```
 
 Now, Signal can be used pointing a browser to [http://localhost:8080](http://localhost:8080) and logging in with the username `user` and the password `pass`.

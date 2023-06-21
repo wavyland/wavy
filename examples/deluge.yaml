@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    wavy.squat.ai/enable: "true"
+  labels:
+    app.kubernetes.io/name: deluge
+  name: deluge
+spec:
+  containers:
+  - image: kasmweb/deluge:1.13.1
+    name: deluge
+    command:
+    - /usr/bin/deluge-gtk

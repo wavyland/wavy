@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    wavy.squat.ai/enable: "true"
+  labels:
+    app.kubernetes.io/name: doom
+  name: doom
+spec:
+  containers:
+  - image: kasmweb/doom:1.13.1
+    name: doom
+    command:
+    - /usr/games/chocolate-doom

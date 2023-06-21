@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    wavy.squat.ai/enable: "true"
+  labels:
+    app.kubernetes.io/name: postman
+  name: postman
+spec:
+  containers:
+  - image: kasmweb/postman:1.13.1
+    name: postman
+    command:
+    - /opt/Postman/Postman
