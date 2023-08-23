@@ -37,7 +37,7 @@ metadata:
   name: signal
 spec:
   containers:
-  - image: tianon/signal-desktop:6.18.0
+  - image: tianon/signal-desktop:6
     name: signal
     command:
     - signal-desktop
