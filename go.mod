@@ -7,6 +7,7 @@ require (
 	github.com/efficientgo/e2e v0.14.1-0.20230329073854-29a5a4d5575a
 	github.com/go-kit/log v0.2.0
 	github.com/metalmatze/signal v0.0.0-20210307161603-1c9aa721a97a
+	github.com/n7olkachev/imgdiff v1.0.2
 	github.com/oklog/run v1.1.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/spf13/cobra v1.6.1
