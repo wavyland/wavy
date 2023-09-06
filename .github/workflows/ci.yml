@@ -65,7 +65,6 @@ jobs:
     - name: Build Container
       run: |
         make container-latest
-        docker tag ghcr.io/wavyland/wavy:amd64-latest ghcr.io/wavyland/wavy
     - name: Test Code
       run: make unit
 

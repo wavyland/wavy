@@ -116,7 +116,7 @@ lint: header $(STATICCHECK_BINARY)
 
 unit: container
 	docker tag $(IMAGE):$(ARCH)-$(VERSION) $(IMAGE)
-	go test --race ./...
+	go test -v --race ./...
 
 test: lint unit
 
