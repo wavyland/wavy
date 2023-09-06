@@ -78,6 +78,9 @@ The following annotations can be added to any Kubernetes Pod, DaemonSet, Deploym
 |[wavy.squat.ai/tls-secret](#tls-secret)|string|`app-tls`|
 |[wavy.squat.ai/host](#host)|boolean|`"true"`|
 |[wavy.squat.ai/x](#x)|boolean|`"true"`|
+|[wavy.squat.ai/expose-vnc](#expose-vnc)|boolean|`"true"`|
+|[wavy.squat.ai/vnc-basic-auth-secret](#vnc-basic-auth-secret)|string|`app-secret`|
+|[wavy.squat.ai/vnc-tls-secret](#vnc-tls-secret)|string|`app-tls`|
 
 ### enable
 
@@ -103,6 +106,8 @@ See the [Kubernetes documentation on secrets](https://kubernetes.io/docs/concept
 When workloads are annotated with `wavy.squat.ai/host=true`, Wavy renders their applications on a physical device connected to the host, for example a monitor connected to a server.
 This mode of operation allows nodes in a Kubernetes cluster to serve as display kiosks rendering an application on a display.
 
+> **Note**: Kubernetes annotation values are required to be strings; this means the value of this annotation must be the YAML string literal `"true"` rather than the YAML boolean `true`.
+
 > **Note**: Wavy accesses the host's devices without using privileged Pods. This is made possible by the [generic-device-plugin](https://github.com/squat/generic-device-plugin), which enables the Kubernetes scheduler to allocate access to Linux devices. The generic-device-plugin must be configured with the following flags to discover the devices needed by Wavy:
 1. `--device={"name": "tty", "groups": [{"paths": [{"limit": 10, "path": "/dev/tty0"}, {"path": "/dev/tty[1-9]"}]}]}`
 2. `--device={"name": "input", "groups": [{"count": 10, "paths": [{"path": "/dev/input"}]}]}`
@@ -114,3 +119,33 @@ Support for X is enabled by default.
 The `wavy.squat.ai/x=false` annotation can be used to disable support for X in the workload.
 
 > **Note**: Kubernetes annotation values are required to be strings; this means the value of this annotation must be the YAML string literal `"false"` rather than the YAML boolean `false`.
+
+### expose-vnc
+
+For security, the internal VNC server only listens on the Pod's loopback device by default.
+However, in some instances it might be desirable to connect directly to the internal VNC server with a VNC client instead of through the browser.
+In this case, the workload can be annotated with `wavy.squat.ai/expose-vnc=true`, which will cause Wavy to configure the VNC server to listen on all interfaces.
+The workload can then be exposed using a Kubernetes Service, for example a NodePort Service.
+
+> **Note**: exposing the VNC server to the internet will allow anyone to connect to the application; it is strongly recommended that the connection to the VNC server be secured with authenticaton and encryption using the [wavy.squat.ai/vnc-basic-auth-secret](#vnc-basic-auth-secret) and [wavy.squat.ai/vnc-tls-secret](#vnc-tls-secret) annotations respectively.
+
+> **Note**: Kubernetes annotation values are required to be strings; this means the value of this annotation must be the YAML string literal `"true"` rather than the YAML boolean `true`.
+
+### vnc-basic-auth-secret
+
+Access to the internal VNC server can be guarded with basic authentication by annotating the workload with `wavy.squat.ai/vnc-basic-auth-secret`.
+This is useful for exposing the VNC server on the internet to allow VNC clients on other devices to connect securely.
+When basic authentication is activated, access is only permitted with the username and password contained in the secret referenced in the annotation.
+The secret is expected to be a Kubernetes secret of type `kubernetes.io/basic-auth` and must provide values for the `username` and `password` keys.
+See the [Kubernetes documentation on secrets](https://kubernetes.io/docs/concepts/configuration/secret/#basic-authentication-secret) for more information.
+
+> **Note**: the [wavy.squat.ai/vnc-tls-secret](#vnc-tls-secret) annotation must also be supplied in order to enable authentication on the VNC server.
+
+### vnc-tls-secret
+
+Workloads annotated with `wavy.squat.ai/vnc-tls-secret` will expose the VNC server over TLS using the certificate and key contained in the referenced secret.
+This is useful for exposing the VNC server on the internet to allow VNC clients on other devices to connect securely.
+The secret is expected to be a Kubernetes secret of type `kubernetes.io/tls` and must provide values for the `tls.crt` and `tls.key` keys.
+See the [Kubernetes documentation on secrets](https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets) for more information.
+
+> **Note**: the [wavy.squat.ai/vnc-basic-auth-secret](#vnc-basic-auth-secret) annotation must also be supplied in order to enable authentication on the VNC server.

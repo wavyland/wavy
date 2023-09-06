@@ -62,7 +62,7 @@ func TestWebhook(t *testing.T) {
 	testutil.Ok(t, err, string(out))
 	out, err = kubectl(context.Background(), e, "rollout", "status", "deployment", "wavy-webhook", "--namespace", "wavy").CombinedOutput()
 	testutil.Ok(t, err, string(out))
-	out, err = kubectl(context.Background(), e, "patch", "deployment", "signal", "--patch", `{"metadata": {"annotations": {"wavy.squat.ai/enable": "true"}}}`).CombinedOutput()
+	out, err = kubectl(context.Background(), e, "patch", "deployment", "signal", "--patch", `{"metadata": {"annotations": {"wavy.squat.ai/enable": "true", "wavy.squat.ai/expose-vnc": "true"}}}`).CombinedOutput()
 	testutil.Ok(t, err, string(out))
 	out, err = kubectl(context.Background(), e, "rollout", "status", "deployment", "signal").CombinedOutput()
 	testutil.Ok(t, err, string(out))
@@ -96,6 +96,7 @@ func TestWebhook(t *testing.T) {
 	testutil.Ok(t, err, string(out))
 	out, err = kubectl(context.Background(), e, "wait", "--for", "jsonpath={.status.phase}=Succeeded", "pod", "vnccapture", "--timeout", "1m").CombinedOutput()
 	testutil.Ok(t, err, string(out))
+	defer os.Remove(capture)
 	testutil.Ok(t, compareImages("test/signal.png", capture))
 }
 

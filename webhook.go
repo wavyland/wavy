@@ -44,37 +44,43 @@ import (
 )
 
 const (
-	containerNameNoVNC           = "wavy-novnc"
-	containerNameSway            = "wavy-sway"
-	containerNameWayVNC          = "wavy-wayvnc"
-	containerNameXauth           = "wavy-xauth"
-	envNameDisplay               = "DISPLAY"
-	envNameWaylandDisplay        = "WAYLAND_DISPLAY"
-	envNameWLRBackends           = "WLR_BACKENDS"
-	envNameXauthority            = "XAUTHORITY"
-	envNameXDGRuntimeDir         = "XDG_RUNTIME_DIR"
-	portNameVNC                  = "wavy-vnc"
-	portNameHTTP                 = "wavy-http"
-	volumeNameRunUdevData        = "wavy-run-udev-data"
-	volumeNameTLS                = "wavy-tls"
-	volumeNameTmp                = "wavy-tmp"
-	volumeNameXDGRuntimeDir      = "wavy-xdg-runtime-dir"
-	pathRunUdevData              = "/run/udev/data"
-	pathTLS                      = "/var/lib/wavy/tls"
-	pathTmp                      = "/tmp"
-	pathXauthority               = "/var/lib/wavy/xdg/.Xauthority"
-	pathXDGRuntimeDir            = "/var/lib/wavy/xdg"
-	defaultWaylandDisplay        = "wayland-1"
-	annotationKeyEnable          = "wavy.squat.ai/enable"
-	annotationKeyTLSSecret       = "wavy.squat.ai/tls-secret"
-	annotationKeyBasicAuthSecret = "wavy.squat.ai/basic-auth-secret"
-	annotationKeyHost            = "wavy.squat.ai/host"
-	annotationKeyX               = "wavy.squat.ai/x"
-	annotationValueTrue          = "true"
-	annotationValueFalse         = "false"
-	resourceNameDRI              = v1.ResourceName("squat.ai/dri")
-	resourceNameInput            = v1.ResourceName("squat.ai/input")
-	resourceNameTTY              = v1.ResourceName("squat.ai/tty")
+	containerNameNoVNC              = "wavy-novnc"
+	containerNameSway               = "wavy-sway"
+	containerNameWayVNC             = "wavy-wayvnc"
+	containerNameWayVNCConfig       = "wavy-wayvnc-config"
+	containerNameXauth              = "wavy-xauth"
+	envNameDisplay                  = "DISPLAY"
+	envNameWaylandDisplay           = "WAYLAND_DISPLAY"
+	envNameWLRBackends              = "WLR_BACKENDS"
+	envNameXauthority               = "XAUTHORITY"
+	envNameXDGRuntimeDir            = "XDG_RUNTIME_DIR"
+	portNameVNC                     = "wavy-vnc"
+	portNameHTTP                    = "wavy-http"
+	volumeNameRunUdevData           = "wavy-run-udev-data"
+	volumeNameTLS                   = "wavy-tls"
+	volumeNameVNCTLS                = "wavy-vnc-tls"
+	volumeNameTmp                   = "wavy-tmp"
+	volumeNameXDGRuntimeDir         = "wavy-xdg-runtime-dir"
+	pathRunUdevData                 = "/run/udev/data"
+	pathTLS                         = "/var/lib/wavy/tls"
+	pathTmp                         = "/tmp"
+	pathWayVNCConfig                = "/var/lib/wavy/xdg/.config/wayvnc/config"
+	pathXauthority                  = "/var/lib/wavy/xdg/.Xauthority"
+	pathXDGRuntimeDir               = "/var/lib/wavy/xdg"
+	defaultWaylandDisplay           = "wayland-1"
+	annotationKeyEnable             = "wavy.squat.ai/enable"
+	annotationKeyExposeVNC          = "wavy.squat.ai/expose-vnc"
+	annotationKeyTLSSecret          = "wavy.squat.ai/tls-secret"
+	annotationKeyBasicAuthSecret    = "wavy.squat.ai/basic-auth-secret"
+	annotationKeyVNCTLSSecret       = "wavy.squat.ai/vnc-tls-secret"
+	annotationKeyVNCBasicAuthSecret = "wavy.squat.ai/vnc-basic-auth-secret"
+	annotationKeyHost               = "wavy.squat.ai/host"
+	annotationKeyX                  = "wavy.squat.ai/x"
+	annotationValueTrue             = "true"
+	annotationValueFalse            = "false"
+	resourceNameDRI                 = v1.ResourceName("squat.ai/dri")
+	resourceNameInput               = v1.ResourceName("squat.ai/input")
+	resourceNameTTY                 = v1.ResourceName("squat.ai/tty")
 )
 
 var (
@@ -177,10 +183,13 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 
 	if requiresPatch(om) {
 		o := patchOptions{
-			basicAuthSecret: om.Annotations[annotationKeyBasicAuthSecret],
-			host:            om.Annotations[annotationKeyHost] == annotationValueTrue,
-			tlsSecret:       om.Annotations[annotationKeyTLSSecret],
-			x:               om.Annotations[annotationKeyX] != annotationValueFalse,
+			basicAuthSecret:    om.Annotations[annotationKeyBasicAuthSecret],
+			exposeVNC:          om.Annotations[annotationKeyExposeVNC] == annotationValueTrue,
+			host:               om.Annotations[annotationKeyHost] == annotationValueTrue,
+			tlsSecret:          om.Annotations[annotationKeyTLSSecret],
+			vncBasicAuthSecret: om.Annotations[annotationKeyVNCBasicAuthSecret],
+			vncTLSSecret:       om.Annotations[annotationKeyVNCTLSSecret],
+			x:                  om.Annotations[annotationKeyX] != annotationValueFalse,
 		}
 		ps = patchPodSpec(ps, &o)
 		newBytes, err := json.Marshal(getObject(ps))
@@ -331,10 +340,13 @@ func requiresPatch(meta *metav1.ObjectMeta) bool {
 }
 
 type patchOptions struct {
-	basicAuthSecret string
-	host            bool
-	tlsSecret       string
-	x               bool
+	basicAuthSecret    string
+	exposeVNC          bool
+	host               bool
+	tlsSecret          string
+	vncBasicAuthSecret string
+	vncTLSSecret       string
+	x                  bool
 }
 
 func sliceHasElementWithName(slice any, name string) bool {
@@ -367,6 +379,7 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 	var hasSway bool
 	var hasWayVNC bool
 	var hasXauth bool
+	var hasWayVNCConfig bool
 	for i := range ps.Containers {
 		switch ps.Containers[i].Name {
 		case containerNameNoVNC:
@@ -421,13 +434,15 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 		switch ps.InitContainers[i].Name {
 		case containerNameXauth:
 			hasXauth = true
+		case containerNameWayVNCConfig:
+			hasWayVNCConfig = true
 		}
 	}
 
 	if !hasNoVNC {
 		args := []string{"--file-only"}
 		port := int32(8080)
-		var vs []v1.VolumeMount
+		var vms []v1.VolumeMount
 		if o.tlsSecret != "" {
 			port = 8443
 			args = append(args,
@@ -437,7 +452,7 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 				"--key",
 				filepath.Join(pathTLS, "tls.key"),
 			)
-			vs = append(vs, v1.VolumeMount{
+			vms = append(vms, v1.VolumeMount{
 				Name:      volumeNameTLS,
 				MountPath: pathTLS,
 			})
@@ -500,7 +515,7 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 					Protocol:      v1.ProtocolTCP,
 				},
 			},
-			VolumeMounts: vs,
+			VolumeMounts: vms,
 		})
 	}
 
@@ -511,14 +526,14 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 				Value: pathXDGRuntimeDir,
 			},
 		}
-		vs := []v1.VolumeMount{
+		vms := []v1.VolumeMount{
 			{
 				Name:      volumeNameXDGRuntimeDir,
 				MountPath: pathXDGRuntimeDir,
 			},
 		}
 		if o.x {
-			vs = append(vs, v1.VolumeMount{
+			vms = append(vms, v1.VolumeMount{
 				Name:      volumeNameTmp,
 				MountPath: pathTmp,
 			})
@@ -532,7 +547,7 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 		var sc *v1.SecurityContext
 		if o.host {
 			cmd = append(cmd, "seatd-launch", "sway")
-			vs = append(vs, []v1.VolumeMount{
+			vms = append(vms, []v1.VolumeMount{
 				{
 					Name:      volumeNameRunUdevData,
 					MountPath: pathRunUdevData,
@@ -565,15 +580,33 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 				Limits: rs,
 			},
 			SecurityContext: sc,
-			VolumeMounts:    vs,
+			VolumeMounts:    vms,
 		})
 	}
 
 	if !hasWayVNC {
+		address := "127.0.0.1"
+		if o.exposeVNC {
+			address = "0.0.0.0"
+		}
+		args := []string{"--verbose", address, "5900"}
+		vms := []v1.VolumeMount{
+			{
+				Name:      volumeNameXDGRuntimeDir,
+				MountPath: pathXDGRuntimeDir,
+			},
+		}
+		if o.vncBasicAuthSecret != "" && o.vncTLSSecret != "" {
+			args = append(args, "--config", pathWayVNCConfig)
+			vms = append(vms, v1.VolumeMount{
+				Name:      volumeNameVNCTLS,
+				MountPath: pathTLS,
+			})
+		}
 		ps.Containers = append(ps.Containers, v1.Container{
 			Name:  containerNameWayVNC,
 			Image: "ghcr.io/wavyland/wayvnc",
-			Args:  []string{"0.0.0.0", "5900"},
+			Args:  args,
 			Env: []v1.EnvVar{
 				{
 					Name:  envNameXDGRuntimeDir,
@@ -584,12 +617,14 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 					Value: defaultWaylandDisplay,
 				},
 			},
-			VolumeMounts: []v1.VolumeMount{
+			Ports: []v1.ContainerPort{
 				{
-					Name:      volumeNameXDGRuntimeDir,
-					MountPath: pathXDGRuntimeDir,
+					Name:          portNameVNC,
+					ContainerPort: 5900,
+					Protocol:      v1.ProtocolTCP,
 				},
 			},
+			VolumeMounts: vms,
 		})
 	}
 
@@ -609,6 +644,65 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 				{
 					Name:      volumeNameXDGRuntimeDir,
 					MountPath: pathXDGRuntimeDir,
+				},
+			},
+		})
+	}
+
+	if !hasWayVNCConfig && o.vncBasicAuthSecret != "" && o.vncTLSSecret != "" {
+		ps.InitContainers = append(ps.InitContainers, v1.Container{
+			Name:    containerNameWayVNCConfig,
+			Image:   "ghcr.io/wavyland/wayvnc",
+			Command: []string{"/bin/sh"},
+			Args: []string{"-c", `mkdir -p "$(dirname ` + pathWayVNCConfig + `)" && echo "enable_auth=true
+username=$USERNAME
+password=$PASSWORD
+private_key_file=` + filepath.Join(pathTLS, "tls.key") + `
+certificate_file=` + filepath.Join(pathTLS, "tls.crt") + `" > ` + pathWayVNCConfig},
+			Env: []v1.EnvVar{
+				{
+					Name:  envNameXDGRuntimeDir,
+					Value: pathXDGRuntimeDir,
+				},
+				{
+					Name: "USERNAME",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: o.vncBasicAuthSecret,
+							},
+							Key: "username",
+						},
+					},
+				},
+				{
+					Name: "PASSWORD",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							LocalObjectReference: v1.LocalObjectReference{
+								Name: o.vncBasicAuthSecret,
+							},
+							Key: "password",
+						},
+					},
+				},
+			},
+			VolumeMounts: []v1.VolumeMount{
+				{
+					Name:      volumeNameVNCTLS,
+					MountPath: pathTLS,
+				},
+				{
+					Name:      volumeNameXDGRuntimeDir,
+					MountPath: pathXDGRuntimeDir,
+				},
+			},
+		})
+		ps.Volumes = append(ps.Volumes, v1.Volume{
+			Name: volumeNameVNCTLS,
+			VolumeSource: v1.VolumeSource{
+				Secret: &v1.SecretVolumeSource{
+					SecretName: o.vncTLSSecret,
 				},
 			},
 		})
