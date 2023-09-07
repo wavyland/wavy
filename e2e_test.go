@@ -96,6 +96,7 @@ func TestWebhook(t *testing.T) {
 	testutil.Ok(t, err, string(out))
 	out, err = kubectl(context.Background(), e, "wait", "--for", "jsonpath={.status.phase}=Succeeded", "pod", "vnccapture", "--timeout", "1m").CombinedOutput()
 	testutil.Ok(t, err, string(out))
+	defer os.Remove(capture)
 	testutil.Ok(t, compareImages("test/signal.png", capture))
 }
 
