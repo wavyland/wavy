@@ -8,7 +8,7 @@ metadata:
   name: signal
 spec:
   containers:
-  - image: tianon/signal-desktop:6
+  - image: tianon/signal-desktop:7.69
     name: signal
     command:
     - signal-desktop

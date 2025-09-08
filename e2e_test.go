@@ -17,6 +17,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	_ "image/png"
 	"os"
@@ -25,10 +26,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/n7olkachev/imgdiff/pkg/imgdiff"
-
-	"github.com/efficientgo/core/testutil"
 	"github.com/efficientgo/e2e"
+	"github.com/n7olkachev/imgdiff/pkg/imgdiff"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func kind(ctx context.Context, e e2e.Environment, extraArgs ...string) *exec.Cmd {
@@ -41,37 +42,37 @@ func kubectl(ctx context.Context, e e2e.Environment, extraArgs ...string) *exec.
 	return exec.CommandContext(ctx, "kubectl", append(args, extraArgs...)...)
 }
 
-func TestWebhook(t *testing.T) {
+func TestE2EWebhook(t *testing.T) {
 	t.Parallel()
 	e, err := e2e.NewKindEnvironment()
-	testutil.Ok(t, err)
+	require.NoError(t, err)
 	t.Cleanup(e.Close)
-	out, err := kind(context.Background(), e, "load", "docker-image", "ghcr.io/wavyland/wavy").CombinedOutput()
-	testutil.Ok(t, err, string(out))
-	s := e.Runnable("signal").WithPorts(map[string]int{"vnc": 5900}).Init(e2e.StartOptions{
-		Image: "tianon/signal-desktop:6",
+	out, err := kind(t.Context(), e, "load", "docker-image", "ghcr.io/wavyland/wavy").CombinedOutput()
+	require.NoError(t, err, string(out))
+	signal := e.Runnable("signal").WithPorts(map[string]int{"vnc": 5900}).Init(e2e.StartOptions{
+		Image: "tianon/signal-desktop:7.69",
 		Command: e2e.Command{
 			Cmd:  "signal-desktop",
 			Args: []string{"--no-sandbox", "--user-data-dir=/root"},
 		},
 	})
-	testutil.Ok(t, s.Start())
-	out, err = kubectl(context.Background(), e, "apply", "--filename", "manifests/webhook.yaml").CombinedOutput()
-	testutil.Ok(t, err, string(out))
-	out, err = kubectl(context.Background(), e, "wait", "--for", "condition=complete", "job", "cert-gen", "--namespace", "wavy", "--timeout", "1m").CombinedOutput()
-	testutil.Ok(t, err, string(out))
-	out, err = kubectl(context.Background(), e, "rollout", "status", "deployment", "wavy-webhook", "--namespace", "wavy").CombinedOutput()
-	testutil.Ok(t, err, string(out))
-	out, err = kubectl(context.Background(), e, "patch", "deployment", "signal", "--patch", `{"metadata": {"annotations": {"wavy.squat.ai/enable": "true", "wavy.squat.ai/expose-vnc": "true"}}}`).CombinedOutput()
-	testutil.Ok(t, err, string(out))
-	out, err = kubectl(context.Background(), e, "rollout", "status", "deployment", "signal").CombinedOutput()
-	testutil.Ok(t, err, string(out))
-	out, err = kubectl(context.Background(), e, "create", "job", "vncdotool", "--image", "ghcr.io/wavyland/vncdotool", "--", "vncdotool", "-s", "signal::5900", "move", "20", "10", "click", "1", "move", "20", "100", "click", "1", "move", "1000", "300").CombinedOutput()
-	testutil.Ok(t, err, string(out))
-	out, err = kubectl(context.Background(), e, "wait", "--for", "condition=complete", "job", "vncdotool", "--timeout", "1m").CombinedOutput()
-	testutil.Ok(t, err, string(out))
+	require.NoError(t, signal.Start())
+	out, err = kubectl(t.Context(), e, "apply", "--filename", "manifests/webhook.yaml").CombinedOutput()
+	require.NoError(t, err, string(out))
+	out, err = kubectl(t.Context(), e, "wait", "--for", "condition=complete", "job", "cert-gen", "--namespace", "wavy", "--timeout", "1m").CombinedOutput()
+	require.NoError(t, err, string(out))
+	out, err = kubectl(t.Context(), e, "rollout", "status", "deployment", "wavy-webhook", "--namespace", "wavy").CombinedOutput()
+	require.NoError(t, err, string(out))
+	out, err = kubectl(t.Context(), e, "patch", "deployment", "signal", "--patch", `{"metadata": {"annotations": {"wavy.squat.ai/enable": "true", "wavy.squat.ai/expose-vnc": "true"}}}`).CombinedOutput()
+	require.NoError(t, err, string(out))
+	out, err = kubectl(t.Context(), e, "rollout", "status", "deployment", "signal").CombinedOutput()
+	require.NoError(t, err, string(out))
+	out, err = kubectl(t.Context(), e, "create", "job", "vncdotool", "--image", "ghcr.io/wavyland/vncdotool", "--", "vncdotool", "-s", "signal::5900", "move", "200", "10", "click", "1", "move", "200", "250", "click", "1", "move", "1000", "285", "pause", "1", "mousedown", "1", "mousemove", "800", "285", "mouseup", "1").CombinedOutput()
+	require.NoError(t, err, string(out))
+	out, err = kubectl(t.Context(), e, "wait", "--for", "condition=complete", "job", "vncdotool", "--timeout", "1m").CombinedOutput()
+	require.NoError(t, err, string(out))
 	capture := filepath.Join(e.SharedDir(), "capture.png")
-	out, err = kubectl(context.Background(), e, "run", "vnccapture", "--image", "ghcr.io/wavyland/vnccapture", "--restart", "Never", "--overrides", `{
+	out, err = kubectl(t.Context(), e, "run", "vnccapture", "--image", "ghcr.io/wavyland/vnccapture", "--restart", "Never", "--overrides", `{
   "apiVersion": "v1",
   "spec": {
     "containers": [
@@ -93,11 +94,17 @@ func TestWebhook(t *testing.T) {
     }]
   }
 }`).CombinedOutput()
-	testutil.Ok(t, err, string(out))
-	out, err = kubectl(context.Background(), e, "wait", "--for", "jsonpath={.status.phase}=Succeeded", "pod", "vnccapture", "--timeout", "1m").CombinedOutput()
-	testutil.Ok(t, err, string(out))
-	defer os.Remove(capture)
-	testutil.Ok(t, compareImages("test/signal.png", capture))
+	require.NoError(t, err, string(out), "should successfully create vnccapture pod")
+	out, err = kubectl(t.Context(), e, "wait", "--for", "jsonpath={.status.phase}=Succeeded", "pod", "vnccapture", "--timeout", "1m").CombinedOutput()
+	require.NoError(t, err, string(out), "vnccapture pod should finish running within 1 minute")
+	err = compareImages("test/signal.png", capture)
+	assert.NoError(t, err, "images should be identical")
+	if err != nil {
+		data, err := os.ReadFile(capture)
+		assert.NoError(t, err)
+		err = os.WriteFile("capture.png", data, 0644)
+		assert.NoError(t, err)
+	}
 }
 
 func loadImages(paths ...string) ([]image.Image, error) {
@@ -113,7 +120,7 @@ func loadImages(paths ...string) ([]image.Image, error) {
 				errs[i] = err
 				return
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			img, _, err := image.Decode(f)
 			if err != nil {
 				errs[i] = err
@@ -134,7 +141,7 @@ func loadImages(paths ...string) ([]image.Image, error) {
 func compareImages(a, b string) error {
 	images, err := loadImages(a, b)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load images: %w", err)
 	}
 	result := imgdiff.Diff(images[0], images[1], &imgdiff.Options{
 		Threshold: 0.1,

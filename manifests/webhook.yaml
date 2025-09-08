@@ -13,25 +13,25 @@ webhooks:
 - name: wavy.squat.ai
   namespaceSelector:
     matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: NotIn
-        values: [wavy]
+    - key: app.kubernetes.io/name
+      operator: NotIn
+      values: [wavy]
   rules:
-  - apiGroups:   [""]
+  - apiGroups: [""]
     apiVersions: [v1]
-    operations:  [CREATE]
-    resources:   [pods]
-    scope:       Namespaced
-  - apiGroups:   [apps]
+    operations: [CREATE]
+    resources: [pods]
+    scope: Namespaced
+  - apiGroups: [apps]
     apiVersions: [v1]
-    operations:  [CREATE, UPDATE]
-    resources:   [daemonsets, deployments, replicasets, statefulsets]
-    scope:       Namespaced
-  - apiGroups:   [batch]
+    operations: [CREATE, UPDATE]
+    resources: [daemonsets, deployments, replicasets, statefulsets]
+    scope: Namespaced
+  - apiGroups: [batch]
     apiVersions: [v1]
-    operations:  [CREATE, UPDATE]
-    resources:   [cronjobs, jobs]
-    scope:       Namespaced
+    operations: [CREATE, UPDATE]
+    resources: [cronjobs, jobs]
+    scope: Namespaced
   clientConfig:
     service:
       namespace: wavy
@@ -101,8 +101,8 @@ spec:
     app.kubernetes.io/name: wavy
     app.kubernetes.io/component: webhook-server
   ports:
-    - port: 443
-      targetPort: webhook
+  - port: 443
+    targetPort: webhook
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -143,9 +143,9 @@ roleRef:
   kind: ClusterRole
   name: wavy-webhook
 subjects:
-  - kind: ServiceAccount
-    namespace: wavy
-    name: wavy-webhook
+- kind: ServiceAccount
+  namespace: wavy
+  name: wavy-webhook
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -177,9 +177,9 @@ roleRef:
   kind: Role
   name: wavy-webhook
 subjects:
-  - kind: ServiceAccount
-    namespace: wavy
-    name: wavy-webhook
+- kind: ServiceAccount
+  namespace: wavy
+  name: wavy-webhook
 ---
 apiVersion: batch/v1
 kind: Job
