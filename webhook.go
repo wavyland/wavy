@@ -122,11 +122,11 @@ var (
 )
 
 func mutateHandler(w http.ResponseWriter, r *http.Request) {
-	level.Debug(logger).Log("msg", "handling request", "source", r.RemoteAddr)
+	_ = level.Debug(logger).Log("msg", "handling request", "source", r.RemoteAddr)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		errorCounter.Inc()
-		level.Error(logger).Log("err", "failed to parse body from incoming request", "source", r.RemoteAddr)
+		_ = level.Error(logger).Log("err", "failed to parse body from incoming request", "source", r.RemoteAddr)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -137,7 +137,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 	if contentType != "application/json" {
 		errorCounter.Inc()
 		msg := fmt.Sprintf("received Content-Type=%s, expected application/json", contentType)
-		level.Error(logger).Log("err", msg)
+		_ = level.Error(logger).Log("err", msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
@@ -148,21 +148,21 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		errorCounter.Inc()
 		msg := fmt.Sprintf("Request could not be decoded: %v", err)
-		level.Error(logger).Log("err", msg)
+		_ = level.Error(logger).Log("err", msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 	if *gvk != admissionv1.SchemeGroupVersion.WithKind("AdmissionReview") {
 		errorCounter.Inc()
 		msg := "only API v1 is supported"
-		level.Error(logger).Log("err", msg)
+		_ = level.Error(logger).Log("err", msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 	if admissionReview.Request == nil || admissionReview.Request.UID == "" {
 		errorCounter.Inc()
 		msg := "invalid admission review request"
-		level.Error(logger).Log("err", msg)
+		_ = level.Error(logger).Log("err", msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
@@ -176,7 +176,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		errorCounter.Inc()
 		msg := fmt.Sprintf("could not unmarshal extension to pod spec: %v:", err)
-		level.Error(logger).Log("err", msg)
+		_ = level.Error(logger).Log("err", msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
@@ -196,7 +196,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			errorCounter.Inc()
 			msg := fmt.Sprintf("could not marshal new pod: %v:", err)
-			level.Error(logger).Log("err", msg)
+			_ = level.Error(logger).Log("err", msg)
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
@@ -205,7 +205,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			errorCounter.Inc()
 			msg := fmt.Sprintf("could not create patch: %v:", err)
-			level.Error(logger).Log("err", msg)
+			_ = level.Error(logger).Log("err", msg)
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
@@ -215,7 +215,7 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				errorCounter.Inc()
 				msg := fmt.Sprintf("could not marshal patch: %v:", err)
-				level.Error(logger).Log("err", msg)
+				_ = level.Error(logger).Log("err", msg)
 				http.Error(w, msg, http.StatusBadRequest)
 				return
 			}
@@ -229,14 +229,14 @@ func mutateHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		errorCounter.Inc()
 		msg := fmt.Sprintf("failed to marshal response: %v", err)
-		level.Error(logger).Log("err", msg)
+		_ = level.Error(logger).Log("err", msg)
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write(res); err != nil {
-		level.Error(logger).Log("err", err, "msg", "failed to write response")
+		_ = level.Error(logger).Log("err", err, "msg", "failed to write response")
 	}
 }
 
@@ -773,27 +773,27 @@ func webhook(_ *cobra.Command, _ []string) error {
 
 		g.Add(
 			func() error {
-				level.Info(logger).Log("msg", "starting metrics server", "address", s.Addr)
+				_ = level.Info(logger).Log("msg", "starting metrics server", "address", s.Addr)
 				err := s.ListenAndServe()
-				level.Info(logger).Log("msg", "metrics server exited", "err", err)
+				_ = level.Info(logger).Log("msg", "metrics server exited", "err", err)
 				return err
 
 			},
 			func(err error) {
 				var serr run.SignalError
 				if ok := errors.As(err, &serr); ok {
-					level.Info(logger).Log("msg", "received signal", "signal", serr.Signal.String(), "err", err.Error())
+					_ = level.Info(logger).Log("msg", "received signal", "signal", serr.Signal.String(), "err", err.Error())
 				} else {
-					level.Error(logger).Log("msg", "received error", "err", err.Error())
+					_ = level.Error(logger).Log("msg", "received error", "err", err.Error())
 				}
-				level.Info(logger).Log("msg", "shutting down metrics server gracefully")
+				_ = level.Info(logger).Log("msg", "shutting down metrics server gracefully")
 				ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 				defer func() {
 					cancel()
 				}()
 				if err := s.Shutdown(ctx); err != nil {
-					level.Error(logger).Log("msg", "failed to shut down metrics server gracefully", "err", err.Error())
-					s.Close()
+					_ = level.Error(logger).Log("msg", "failed to shut down metrics server gracefully", "err", err.Error())
+					_ = s.Close()
 				}
 			},
 		)
@@ -808,26 +808,26 @@ func webhook(_ *cobra.Command, _ []string) error {
 		}
 		g.Add(
 			func() error {
-				level.Info(logger).Log("msg", "starting webhook server", "address", s.Addr)
+				_ = level.Info(logger).Log("msg", "starting webhook server", "address", s.Addr)
 				err := s.ListenAndServeTLS(certificate, key)
-				level.Info(logger).Log("msg", "webhook server exited", "err", err)
+				_ = level.Info(logger).Log("msg", "webhook server exited", "err", err)
 				return err
 			},
 			func(err error) {
 				var serr run.SignalError
 				if ok := errors.As(err, &serr); ok {
-					level.Info(logger).Log("msg", "received signal", "signal", serr.Signal.String(), "err", err.Error())
+					_ = level.Info(logger).Log("msg", "received signal", "signal", serr.Signal.String(), "err", err.Error())
 				} else {
-					level.Error(logger).Log("msg", "received error", "err", err.Error())
+					_ = level.Error(logger).Log("msg", "received error", "err", err.Error())
 				}
-				level.Info(logger).Log("msg", "shutting down webhook server gracefully")
+				_ = level.Info(logger).Log("msg", "shutting down webhook server gracefully")
 				ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 				defer func() {
 					cancel()
 				}()
 				if err := s.Shutdown(ctx); err != nil {
-					level.Error(logger).Log("msg", "failed to shut down webhook server gracefully", "err", err.Error())
-					s.Close()
+					_ = level.Error(logger).Log("msg", "failed to shut down webhook server gracefully", "err", err.Error())
+					_ = s.Close()
 				}
 			},
 		)
