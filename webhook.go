@@ -573,7 +573,7 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 		}
 		ps.Containers = append(ps.Containers, v1.Container{
 			Name:    containerNameSway,
-			Image:   "ghcr.io/wavyland/sway",
+			Image:   "ghcr.io/wavyland/sway:d48d460",
 			Command: cmd,
 			Env:     es,
 			Resources: v1.ResourceRequirements{
@@ -631,7 +631,7 @@ func patchPodSpec(old *v1.PodSpec, o *patchOptions) *v1.PodSpec {
 	if !hasXauth && o.x {
 		ps.InitContainers = append(ps.InitContainers, v1.Container{
 			Name:    containerNameXauth,
-			Image:   "ghcr.io/wavyland/sway",
+			Image:   "ghcr.io/wavyland/sway:d48d460",
 			Command: []string{"/bin/sh"},
 			Args:    []string{"-c", "mcookie | sed -e 's/^/add :0 . /' | xauth && chmod 660 $(XAUTHORITY)"},
 			Env: []v1.EnvVar{
