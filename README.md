@@ -6,6 +6,7 @@ Wavy is a toolset for running GUI applications on Kubernetes.
 
 [![Build Status](https://github.com/wavyland/wavy/workflows/CI/badge.svg)](https://github.com/wavyland/wavy/actions?query=workflow%3ACI)
 [![Go Report Card](https://goreportcard.com/badge/github.com/wavyland/wavy)](https://goreportcard.com/report/github.com/wavyland/wavy)
+[![Built with Nix](https://img.shields.io/static/v1?logo=nixos&logoColor=white&label=&message=Built%20with%20Nix&color=41439a)](https://builtwithnix.org)
 
 ## Overview
 
