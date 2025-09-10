@@ -1,5 +1,5 @@
 .direnv/
 /.pre-commit-config.yaml
-result*
-e2e-*/
-capture.png
+/result*
+/e2e-*/
+/capture.png
