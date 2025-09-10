@@ -74,6 +74,35 @@
                   ".github"
                   "vendor"
                 ];
+                header = {
+                  enable = true;
+                  name = "Header";
+                  entry =
+                    let
+                      headerCheck = pkgs.writeShellApplication {
+                        name = "header-check";
+                        text = ''
+                          HEADER=$(cat ${./.header})
+                          HEADER_LEN=$(wc -l ${./.header} | awk '{print $1}')
+                          FILES=
+                          for f in "$@"; do 
+                              for i in 0 1 2 3 4 5; do 
+                                  FILE=$(tail -n +$i "$f" | head -n "$HEADER_LEN" | sed "s/[0-9]\{4\}/YEAR/")
+                                  [ "$FILE" = "$HEADER" ] && continue 2
+                              done
+                              FILES="$FILES$f "
+                          done
+                          if [ -n "$FILES" ]; then \
+                              printf 'the following files are missing the license header: %s\n' "$FILES"; \
+                              exit 1
+                          fi
+                        '';
+                      };
+                    in
+                    pkgs.lib.getExe headerCheck;
+                  files = "\\.(go)$";
+                  excludes = [ "vendor" ];
+                };
               };
             };
           };
