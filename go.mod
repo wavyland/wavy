@@ -13,8 +13,8 @@ require (
 	github.com/stretchr/testify v1.11.1
 	gomodules.xyz/jsonpatch/v2 v2.5.0
 	honnef.co/go/tools v0.6.1
-	k8s.io/api v0.26.3
-	k8s.io/apimachinery v0.34.0
+	k8s.io/api v0.34.1
+	k8s.io/apimachinery v0.34.1
 )
 
 require (
