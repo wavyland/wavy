@@ -66,8 +66,8 @@ github.com/modern-go/reflect2
 ## explicit; go 1.14
 github.com/n7olkachev/imgdiff/pkg/imgdiff
 github.com/n7olkachev/imgdiff/pkg/yiq
-# github.com/oklog/run v1.1.0
-## explicit; go 1.13
+# github.com/oklog/run v1.2.0
+## explicit; go 1.20
 github.com/oklog/run
 # github.com/pmezard/go-difflib v1.0.0
 ## explicit

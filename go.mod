@@ -7,7 +7,7 @@ require (
 	github.com/go-kit/log v0.2.0
 	github.com/metalmatze/signal v0.0.0-20210307161603-1c9aa721a97a
 	github.com/n7olkachev/imgdiff v1.0.2
-	github.com/oklog/run v1.1.0
+	github.com/oklog/run v1.2.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
