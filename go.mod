@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	github.com/efficientgo/e2e v0.14.1-0.20230329073854-29a5a4d5575a
-	github.com/go-kit/log v0.2.0
+	github.com/go-kit/log v0.2.1
 	github.com/metalmatze/signal v0.0.0-20210307161603-1c9aa721a97a
 	github.com/n7olkachev/imgdiff v1.0.2
 	github.com/oklog/run v1.1.0
