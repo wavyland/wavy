@@ -36,7 +36,7 @@
               src = ./.;
               vendorHash = null;
               checkFlags = [ "-skip=^TestE2E" ];
-              CGO_ENABLED = 0;
+              env.CGO_ENABLED = 0;
               ldflags = [
                 "-s -w -X github.com/wavyland/wavy/version.Version=${version}"
               ];
