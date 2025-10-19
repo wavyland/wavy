@@ -67,7 +67,7 @@ func TestE2EWebhook(t *testing.T) {
 	require.NoError(t, err, string(out))
 	out, err = kubectl(t.Context(), e, "rollout", "status", "deployment", "signal").CombinedOutput()
 	require.NoError(t, err, string(out))
-	out, err = kubectl(t.Context(), e, "create", "job", "vncdotool", "--image", "ghcr.io/wavyland/vncdotool", "--", "vncdotool", "-s", "signal::5900", "move", "200", "10", "click", "1", "move", "200", "250", "click", "1", "move", "1000", "285", "pause", "1", "mousedown", "1", "mousemove", "800", "285", "mouseup", "1").CombinedOutput()
+	out, err = kubectl(t.Context(), e, "create", "job", "vncdotool", "--image", "ghcr.io/wavyland/vncdotool", "--", "vncdotool", "-s", "signal::5900", "move", "200", "10", "click", "1", "pause", "1", "move", "200", "250", "click", "1", "pause", "1", "move", "1000", "285", "mousedown", "1", "pause", "1", "mousemove", "800", "285", "mouseup", "1").CombinedOutput()
 	require.NoError(t, err, string(out))
 	out, err = kubectl(t.Context(), e, "wait", "--for", "condition=complete", "job", "vncdotool", "--timeout", "1m").CombinedOutput()
 	require.NoError(t, err, string(out))
