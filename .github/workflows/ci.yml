@@ -74,7 +74,7 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@v21
       - uses: DeterminateSystems/magic-nix-cache-action@v13
       - run: nix develop . --command go test -v ./...
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         if: failure()
         with:
           name: e2e-capture
