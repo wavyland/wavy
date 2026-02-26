@@ -1,0 +1,9 @@
+**
+
+!/flake.lock
+!/flake.nix
+!/*.go
+!/version
+!/go.mod
+!/go.sum
+!/vendor
