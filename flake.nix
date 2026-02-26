@@ -11,7 +11,7 @@
   };
 
   outputs =
-    inputs:
+    { self, ... }@inputs:
     inputs.flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
         inputs.git-hooks-nix.flakeModule
@@ -29,27 +29,62 @@
           ...
         }:
         {
-          packages = rec {
-            wavy = pkgs.buildGoModule rec {
-              pname = "wavy";
-              version = "0.0.1";
-              src = ./.;
-              vendorHash = null;
-              checkFlags = [ "-skip=^TestE2E" ];
-              env.CGO_ENABLED = 0;
-              ldflags = [
-                "-s -w -X github.com/wavyland/wavy/version.Version=${version}"
-              ];
+          packages =
+            let
+              _version = builtins.getEnv "VERSION";
+              wavy = pkgs.buildGoModule (finalAttrs: {
+                pname = "wavy";
+                version = if _version != "" then _version else toString (self.rev or self.dirtyRev or "unknown");
+                src = ./.;
+                vendorHash = null;
+                checkFlags = [ "-skip=^TestE2E" ];
+                env.CGO_ENABLED = 0;
+                ldflags = [
+                  "-s -w -X github.com/wavyland/wavy/version.Version=${finalAttrs.version}"
+                ];
 
-              meta = {
-                description = "Wavy is a toolset for running GUI applications on Kubernetes";
-                mainProgram = "wavy";
-                homepage = "https://github.com/wavyland/wavy";
-              };
-            };
+                meta = {
+                  description = "Wavy is a toolset for running GUI applications on Kubernetes";
+                  mainProgram = "wavy";
+                  homepage = "https://github.com/wavyland/wavy";
+                };
+              });
 
-            default = wavy;
-          };
+            in
+            {
+              inherit wavy;
+              default = wavy;
+            }
+            // (builtins.listToAttrs (
+              map
+                (target: {
+                  name = "wavy-cross-${target.os}-${target.arch}";
+                  value = wavy.overrideAttrs (
+                    _: oldAttrs: {
+                      env = oldAttrs.env // {
+                        GOOS = target.os;
+                        GOARCH = target.arch;
+                        CGO_ENABLED = 0;
+                      };
+                      checkPhase = false;
+                    }
+                  );
+                })
+                [
+                  {
+                    os = "linux";
+                    arch = "amd64";
+                  }
+                  {
+                    os = "linux";
+                    arch = "arm64";
+                  }
+                  {
+                    os = "linux";
+                    arch = "arm";
+                  }
+                ]
+            ));
 
           pre-commit = {
             check.enable = true;
